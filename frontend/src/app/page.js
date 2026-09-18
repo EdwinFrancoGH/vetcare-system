@@ -1,4 +1,4 @@
-import Image from "next/image";
+/*import Image from "next/image";
 
 export default function Home() {
   return (
@@ -66,4 +66,31 @@ export default function Home() {
       </main>
     </div>
   );
+}
+*/
+
+"use client";
+
+import { useEffect } from "react";
+import { obtenerMascotas } from "../services/mascotas.service";
+
+export default function Home() {
+
+    useEffect(() => {
+
+        obtenerMascotas()
+            .then(res => console.log(res.data))
+            .catch(err => console.log(err));
+
+    }, []);
+
+    return (
+        <div className="p-10">
+            <h1 className="text-4xl font-bold">
+                VetCare Frontend
+            </h1>
+
+            <p>Revisa la consola del navegador.</p>
+        </div>
+    );
 }
