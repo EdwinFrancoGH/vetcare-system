@@ -27,16 +27,17 @@ import cors from "cors";
 
 import mascotasRoutes from "./routes/mascotas.routes.js";//importacion de la ruta de mascotas
 import historialRoutes from "./routes/historial.routes.js";//importacion de la ruta de historial clinico
-
+import vacunasRoutes from "./routes/vacunas.routes.js";//importacion de la ruta de vacunas
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-//ruta usamos la ruta
+//ruta usamos la ruta de la api inicial
 app.use("/api/mascotas", mascotasRoutes);
 app.use("/api/historiales", historialRoutes);
+app.use("/api/vacunas", vacunasRoutes);
 
 app.get("/", (req, res) => {
     res.json({
