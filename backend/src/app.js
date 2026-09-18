@@ -25,14 +25,18 @@ module.exports = app;
 import express from "express";
 import cors from "cors";
 
-import mascotasRoutes from "./routes/mascotas.routes.js";//importacion de la ruta
+import mascotasRoutes from "./routes/mascotas.routes.js";//importacion de la ruta de mascotas
+import historialRoutes from "./routes/historial.routes.js";//importacion de la ruta de historial clinico
+
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
 //ruta usamos la ruta
 app.use("/api/mascotas", mascotasRoutes);
+app.use("/api/historiales", historialRoutes);
 
 app.get("/", (req, res) => {
     res.json({
