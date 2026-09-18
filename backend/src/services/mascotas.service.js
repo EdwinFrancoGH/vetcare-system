@@ -1,4 +1,4 @@
-import db from "../config/firebase.js";
+/*import db from "../config/firebase.js";
 
 // Obtener todas las mascotas
 export const obtenerTodas = async () => {
@@ -84,4 +84,23 @@ export const eliminar = async (id) => {
     await docRef.delete();
 
     return true;
-};
+};*/
+
+import * as firestore from "./firestore.service.js";
+
+const COLECCION = "mascotas";
+
+export const obtenerTodas = () =>
+    firestore.obtenerTodos(COLECCION);
+
+export const obtenerPorId = (id) =>
+    firestore.obtenerPorId(COLECCION, id);
+
+export const crear = (datos) =>
+    firestore.crear(COLECCION, datos);
+
+export const actualizar = (id, datos) =>
+    firestore.actualizar(COLECCION, id, datos);
+
+export const eliminar = (id) =>
+    firestore.eliminar(COLECCION, id);

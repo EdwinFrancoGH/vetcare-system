@@ -1,4 +1,4 @@
-import db from "../config/firebase.js";
+/*import db from "../config/firebase.js";
 
 const coleccion = db.collection("historiales");
 
@@ -83,4 +83,23 @@ export const eliminar = async (id) => {
 
     return true;
 
-};
+};*/
+
+import * as firestore from "./firestore.service.js";
+const COLECCION = "historiales";
+
+
+export const obtenerTodos = () =>
+    firestore.obtenerTodos(COLECCION);
+
+export const obtenerPorId = (id) =>
+    firestore.obtenerPorId(COLECCION, id);
+
+export const crear = (datos) =>
+    firestore.crear(COLECCION, datos);
+
+export const actualizar = (id, datos) =>
+    firestore.actualizar(COLECCION, id, datos);
+
+export const eliminar = (id) =>
+    firestore.eliminar(COLECCION, id);

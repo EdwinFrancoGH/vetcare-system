@@ -1,4 +1,4 @@
-import db from "../config/firebase.js";
+/*import db from "../config/firebase.js";
 
 const coleccion = db.collection("vacunas");
 
@@ -47,4 +47,22 @@ export const actualizar = async (id, datos) => {
 // Eliminar
 export const eliminar = async (id) => {
     await coleccion.doc(id).delete();
-};
+};*/
+
+import * as firestore from "./firestore.service.js";
+const COLECCION = "vacunas";
+
+export const obtenerTodas = () =>
+    firestore.obtenerTodos(COLECCION);
+
+export const obtenerPorId = (id) =>
+    firestore.obtenerPorId(COLECCION, id);
+
+export const crear = (datos) =>
+    firestore.crear(COLECCION, datos);
+
+export const actualizar = (id, datos) =>
+    firestore.actualizar(COLECCION, id, datos);
+
+export const eliminar = (id) =>
+    firestore.eliminar(COLECCION, id);
