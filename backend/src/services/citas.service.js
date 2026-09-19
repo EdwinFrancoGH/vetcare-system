@@ -1,4 +1,4 @@
-//Estamos creando las operaciones básicas de nuestro módulo:
+// Estamos creando las operaciones básicas de nuestro módulo:
 import db from "../config/firebase.js";
 
 const coleccion = db.collection("citas");
@@ -108,6 +108,25 @@ export const actualizar = async (id, cita) => {
         id: actualizado.id,
         ...actualizado.data()
     };
+};
+
+export const obtenerAgenda = async (fecha, veterinarioId) => {
+    let consulta = coleccion.where("fecha", "==", fecha);
+
+    if (veterinarioId) {
+        consulta = consulta.where("veterinarioId", "==", veterinarioId);
+    }
+
+    const snapshot = await consulta.get();
+
+    const citas = snapshot.docs
+        .map((doc) => ({
+            id: doc.id,
+            ...doc.data()
+        }))
+        .sort((a, b) => a.hora.localeCompare(b.hora));
+
+    return citas;
 };
 
 export const eliminar = async (id) => {

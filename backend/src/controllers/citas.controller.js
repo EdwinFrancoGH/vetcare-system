@@ -1,10 +1,11 @@
 // El controller recibe los datos,
 // los manda a validarCita(),
-// y si son correctos llama a crear() del service.
+// y si son correctos llama a las funciones del service.
 
 import {
     obtenerTodas,
     obtenerPorId,
+    obtenerAgenda,
     crear,
     actualizar,
     eliminar
@@ -47,6 +48,31 @@ export const obtenerCitaPorId = async (req, res) => {
         res.status(500).json({
             ok: false,
             error: "Error al obtener la cita"
+        });
+    }
+};
+
+export const obtenerAgendaCitas = async (req, res) => {
+    try {
+        const { fecha, veterinarioId } = req.query;
+
+        if (!fecha) {
+            return res.status(400).json({
+                ok: false,
+                error: "La fecha es obligatoria"
+            });
+        }
+
+        const citas = await obtenerAgenda(fecha, veterinarioId);
+
+        res.status(200).json({
+            ok: true,
+            data: citas
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            error: "Error al obtener la agenda"
         });
     }
 };

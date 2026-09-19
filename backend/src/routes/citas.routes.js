@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
     obtenerCitas,
     obtenerCitaPorId,
+    obtenerAgendaCitas,
     crearCita,
     actualizarCita,
     eliminarCita
@@ -11,9 +12,15 @@ import {
 const router = Router();
 
 router.get("/", obtenerCitas);
+
+router.get("/agenda", obtenerAgendaCitas);
+
 router.get("/:id", obtenerCitaPorId);
+
 router.post("/", crearCita);
+
 router.put("/:id", actualizarCita);
+
 router.delete("/:id", eliminarCita);
 
 export default router;
