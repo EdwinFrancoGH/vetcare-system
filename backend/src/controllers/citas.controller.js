@@ -1,5 +1,7 @@
-//el controller recibe los datos, los manda al validarCita(), 
+// El controller recibe los datos,
+// los manda a validarCita(),
 // y si son correctos llama a crear() del service.
+
 import {
     obtenerTodas,
     obtenerPorId,
@@ -8,7 +10,7 @@ import {
     eliminar
 } from "../services/citas.service.js";
 
-import { validarCita } from "../validators/cita.validator.js";
+import { validarCita } from "../validators/cita.validators.js";
 
 export const obtenerCitas = async (req, res) => {
     try {
@@ -62,6 +64,13 @@ export const crearCita = async (req, res) => {
 
         const cita = await crear(req.body);
 
+        if (cita.conflicto) {
+            return res.status(409).json({
+                ok: false,
+                error: "El veterinario ya tiene una cita en ese horario"
+            });
+        }
+
         res.status(201).json({
             ok: true,
             mensaje: "Cita creada correctamente",
@@ -92,6 +101,13 @@ export const actualizarCita = async (req, res) => {
             return res.status(404).json({
                 ok: false,
                 error: "Cita no encontrada"
+            });
+        }
+
+        if (cita.conflicto) {
+            return res.status(409).json({
+                ok: false,
+                error: "El veterinario ya tiene una cita en ese horario"
             });
         }
 

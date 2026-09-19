@@ -26,6 +26,27 @@ export const obtenerPorId = async (id) => {
 };
 
 export const crear = async (cita) => {
+    const citasExistentes = await coleccion
+        .where("veterinarioId", "==", cita.veterinarioId)
+        .where("fecha", "==", cita.fecha)
+        .get();
+
+    const horarioOcupado = citasExistentes.docs.some((doc) => {
+        const datos = doc.data();
+
+        return (
+            datos.hora === cita.hora &&
+            (datos.estado === "PENDIENTE" ||
+             datos.estado === "CONFIRMADA")
+        );
+    });
+
+    if (horarioOcupado) {
+        return {
+            conflicto: true
+        };
+    }
+
     const nuevaCita = {
         ...cita,
         estado: cita.estado || "PENDIENTE",
@@ -36,6 +57,7 @@ export const crear = async (cita) => {
     const docRef = await coleccion.add(nuevaCita);
 
     return {
+        conflicto: false,
         id: docRef.id,
         ...nuevaCita
     };
@@ -46,6 +68,28 @@ export const actualizar = async (id, cita) => {
 
     if (!doc.exists) {
         return null;
+    }
+
+    const citasExistentes = await coleccion
+        .where("veterinarioId", "==", cita.veterinarioId)
+        .where("fecha", "==", cita.fecha)
+        .get();
+
+    const horarioOcupado = citasExistentes.docs.some((doc) => {
+        const datos = doc.data();
+
+        return (
+            doc.id !== id &&
+            datos.hora === cita.hora &&
+            (datos.estado === "PENDIENTE" ||
+             datos.estado === "CONFIRMADA")
+        );
+    });
+
+    if (horarioOcupado) {
+        return {
+            conflicto: true
+        };
     }
 
     const datosActualizados = {
@@ -60,6 +104,7 @@ export const actualizar = async (id, cita) => {
     const actualizado = await coleccion.doc(id).get();
 
     return {
+        conflicto: false,
         id: actualizado.id,
         ...actualizado.data()
     };
