@@ -27,6 +27,7 @@ import cors from "cors";
 
 import mascotasRoutes from "./routes/mascotas.routes.js";//importacion de la ruta
 import productosRoutes from "./routes/productos.routes.js";
+import inventarioRoutes from "./routes/inventario.routes.js";
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use(express.json());
 //ruta usamos la ruta
 app.use("/api/mascotas", mascotasRoutes);
 app.use("/api/productos", productosRoutes);
+app.use("/api/inventario", inventarioRoutes);
 
 app.get("/", (req, res) => {
     res.json({
