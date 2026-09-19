@@ -1,4 +1,19 @@
 import db from "../config/firebase.js";
+// Algoritmo para clasificar el estado del inventario
+const clasificarEstadoInventario = (stock, stockMinimo) => {
+    const stockActual = Number(stock);
+    const minimo = Number(stockMinimo);
+
+    if (stockActual === 0) {
+        return "AGOTADO";
+    }
+
+    if (stockActual <= minimo) {
+        return "STOCK_BAJO";
+    }
+
+    return "DISPONIBLE";
+};
 
 // Obtener inventario completo
 export const obtenerInventario = async () => {
@@ -13,10 +28,10 @@ export const obtenerInventario = async () => {
             categoria: producto.categoria,
             stock: Number(producto.stock),
             stockMinimo: Number(producto.stockMinimo),
-            estado:
-                Number(producto.stock) <= Number(producto.stockMinimo)
-                    ? "STOCK_BAJO"
-                    : "DISPONIBLE"
+            estado: clasificarEstadoInventario(
+                producto.stock,
+                producto.stockMinimo
+            )
         };
     });
 };

@@ -31,56 +31,77 @@ export const crearVenta = async (datos) => {
     const resultado = await db.runTransaction(async transaction => {
         const productosVenta = [];
         let total = 0;
+        // Algoritmo para evitar productos duplicados y acumular cantidades
+        const productosAgrupados = new Map();
 
-        // Primero leer todos los productos
         for (const item of productos) {
-            const productoRef = db.collection("productos").doc(item.productoId);
+            const cantidad = Number(item.cantidad);
+
+            if (productosAgrupados.has(item.productoId)) {
+                productosAgrupados.set(
+                    item.productoId,
+                    productosAgrupados.get(item.productoId) + cantidad
+                );
+            } else {
+                productosAgrupados.set(item.productoId, cantidad);
+            }
+        }
+
+        // Leer y validar todos los productos antes de modificar el inventario
+        const productosProcesados = [];
+
+        for (const [productoId, cantidad] of productosAgrupados) {
+            const productoRef = db.collection("productos").doc(productoId);
             const productoDoc = await transaction.get(productoRef);
 
             if (!productoDoc.exists) {
                 throw new Error(
-                    `PRODUCTO_NO_ENCONTRADO:${item.productoId}`
+                    `PRODUCTO_NO_ENCONTRADO:${productoId}`
                 );
             }
 
             const producto = productoDoc.data();
-            const cantidad = Number(item.cantidad);
             const stockActual = Number(producto.stock);
             const precio = Number(producto.precio);
 
+            // Algoritmo de validación de existencias
             if (cantidad > stockActual) {
                 throw new Error(
                     `STOCK_INSUFICIENTE:${producto.nombre}:${stockActual}`
                 );
             }
 
-            const subtotal = precio * cantidad;
+            const subtotal = Number(
+                (precio * cantidad).toFixed(2)
+            );
 
             productosVenta.push({
-                productoId: productoDoc.id,
+                productoId,
                 nombre: producto.nombre,
                 cantidad,
                 precioUnitario: precio,
                 subtotal
             });
 
+            productosProcesados.push({
+                productoRef,
+                stockActual,
+                cantidad
+            });
+
             total += subtotal;
         }
 
-        // Descontar existencias
-        for (const item of productosVenta) {
-            const productoRef = db
-                .collection("productos")
-                .doc(item.productoId);
-
-            const productoDoc = await transaction.get(productoRef);
-            const stockActual = Number(productoDoc.data().stock);
-
-            transaction.update(productoRef, {
-                stock: stockActual - item.cantidad,
+        // Después de terminar TODAS las lecturas,
+        // actualizar las existencias
+        for (const item of productosProcesados) {
+            transaction.update(item.productoRef, {
+                stock: item.stockActual - item.cantidad,
                 fechaActualizacion: new Date().toISOString()
             });
         }
+
+        total = Number(total.toFixed(2));
 
         // Crear venta
         const ventaRef = db.collection("ventas").doc();
