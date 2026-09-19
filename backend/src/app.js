@@ -26,6 +26,7 @@ import express from "express";
 import cors from "cors";
 
 import mascotasRoutes from "./routes/mascotas.routes.js";//importacion de la ruta
+import citasRoutes from "./routes/citas.routes.js"; //importacion de citas
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use(cors());
 app.use(express.json());
 //ruta usamos la ruta
 app.use("/api/mascotas", mascotasRoutes);
+app.use("/api/citas", citasRoutes); //para citas
 
 app.get("/", (req, res) => {
     res.json({
