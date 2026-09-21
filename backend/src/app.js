@@ -1,48 +1,47 @@
-//import express from "express";
-//import mascotasRoutes from "./routes/mascotas.routes.js";//importacion de la ruta
-/*
-const express = require("express");
-const cors = require("cors");
-const mascotasRoutes = require("./routes/mascotas.routes");//lo cambiamos por el CommonJS import es de ES Modules
-
-
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-//ruta agregada
-app.use("/api/mascotas", mascotasRoutes);
-
-app.get("/", (req, res) => {
-    res.json({
-        mensaje: "VetCare API funcionando"
-    });
-});
-
-module.exports = app;
-*/
 import express from "express";
 import cors from "cors";
 
-import mascotasRoutes from "./routes/mascotas.routes.js";//importacion de la ruta de mascotas
-import historialRoutes from "./routes/historial.routes.js";//importacion de la ruta de historial clinico
-import vacunasRoutes from "./routes/vacunas.routes.js";//importacion de la ruta de vacunas
-import citasRoutes from "./routes/citas.routes.js";//importacion de la ruta de citas
-import horariosRoutes from "./routes/horarios.routes.js";//importacion de la ruta de horarios de atencion
+// Rutas de autenticación
+import authRoutes from "./routes/auth.routes.js";
+
+// Rutas del sistema
+import mascotasRoutes from "./routes/mascotas.routes.js";
+import historialRoutes from "./routes/historial.routes.js";
+import vacunasRoutes from "./routes/vacunas.routes.js";
+import citasRoutes from "./routes/citas.routes.js";
+import horariosRoutes from "./routes/horarios.routes.js";
+import clientesRoutes from "./routes/clientes.routes.js";
+import usersRoutes from "./routes/users.routes.js";
+
+// Middlewares
+import { verifyToken } from "./middlewares/auth.middleware.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-//ruta usamos la ruta de la api inicial
-app.use("/api/mascotas", mascotasRoutes);
-app.use("/api/historiales", historialRoutes);
-app.use("/api/vacunas", vacunasRoutes);
-app.use("/api/citas", citasRoutes);
-app.use("/api/horarios", horariosRoutes);
+// ====================
+// Rutas públicas
+// ====================
+app.use("/api/auth", authRoutes);
 
+// ====================
+// Rutas protegidas
+// ====================
+app.use("/api/mascotas", verifyToken, mascotasRoutes);
+app.use("/api/clientes", verifyToken, clientesRoutes);
+app.use("/api/historiales", verifyToken, historialRoutes);
+app.use("/api/vacunas", verifyToken, vacunasRoutes);
+app.use("/api/citas", verifyToken, citasRoutes);
+app.use("/api/horarios", verifyToken, horariosRoutes);
+
+// ====================
+// Administración
+// ====================
+app.use("/api/users", usersRoutes);
+
+// Ruta de prueba
 app.get("/", (req, res) => {
     res.json({
         mensaje: "VetCare API funcionando"
