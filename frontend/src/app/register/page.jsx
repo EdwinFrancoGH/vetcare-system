@@ -28,7 +28,7 @@ export default function RegisterPage() {
             const userCredential = await registerUser(email, password);
             const token = await userCredential.user.getIdToken();
             
-            await fetch("http://localhost:5000/api/auth/sync", {
+            await fetch("http://localhost:5001/api/auth/sync", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

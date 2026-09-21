@@ -22,7 +22,7 @@ export const syncUser = async (req, res) => {
             uid,
             email,
             name: name || '',
-            role: 'Receptionist', // Rol por defecto
+            role: 'Recepcionista', // Rol por defecto
             createdAt: new Date().toISOString(),
             status: 'Active'
         };
