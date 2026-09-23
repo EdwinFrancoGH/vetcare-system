@@ -7,6 +7,7 @@ export default function AgendaPage() {
   const [citas, setCitas] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const horariosOcupados = citas.length;
 
   const obtenerAgenda = async () => {
     try {
@@ -90,94 +91,120 @@ export default function AgendaPage() {
         )}
 
         {!cargando && !error && (
-          <div className="bg-white rounded-xl shadow overflow-hidden">
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
 
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Citas del {fecha}
-              </h2>
+              <div className="bg-white rounded-xl shadow p-6">
+                <p className="text-sm text-gray-500">
+                  Horarios ocupados
+                </p>
 
-              <p className="text-sm text-gray-500 mt-1">
-                {citas.length} cita(s) encontrada(s)
-              </p>
+                <p className="text-3xl font-bold text-blue-600 mt-2">
+                  {horariosOcupados}
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl shadow p-6">
+                <p className="text-sm text-gray-500">
+                  Citas encontradas
+                </p>
+
+                <p className="text-3xl font-bold text-gray-800 mt-2">
+                  {citas.length}
+                </p>
+              </div>
+
             </div>
 
-            {citas.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                No hay citas programadas para esta fecha.
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+
+              <div className="p-6 border-b">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Citas del {fecha}
+                </h2>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  {citas.length} cita(s) encontrada(s)
+                </p>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
 
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
-                        Hora
-                      </th>
+              {citas.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  No hay citas programadas para esta fecha.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
 
-                      <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
-                        Veterinario
-                      </th>
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                          Hora
+                        </th>
 
-                      <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
-                        Propietario
-                      </th>
+                        <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                          Veterinario
+                        </th>
 
-                      <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
-                        Mascota
-                      </th>
+                        <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                          Propietario
+                        </th>
 
-                      <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
-                        Motivo
-                      </th>
+                        <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                          Mascota
+                        </th>
 
-                      <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
-                        Estado
-                      </th>
-                    </tr>
-                  </thead>
+                        <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                          Motivo
+                        </th>
 
-                  <tbody>
-                    {citas.map((cita) => (
-                      <tr
-                        key={cita.id}
-                        className="border-t hover:bg-gray-50"
-                      >
-                        <td className="px-6 py-4 font-medium text-gray-800">
-                          {cita.hora}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-600">
-                          {cita.veterinario}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-600">
-                          {cita.propietario}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-600">
-                          {cita.mascotaId}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-600">
-                          {cita.motivo}
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
-                            {cita.estado}
-                          </span>
-                        </td>
+                        <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                          Estado
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
 
-              </div>
-            )}
+                    <tbody>
+                      {citas.map((cita) => (
+                        <tr
+                          key={cita.id}
+                          className="border-t hover:bg-gray-50"
+                        >
+                          <td className="px-6 py-4 font-medium text-gray-800">
+                            {cita.hora}
+                          </td>
 
-          </div>
+                          <td className="px-6 py-4 text-gray-600">
+                            {cita.veterinario}
+                          </td>
+
+                          <td className="px-6 py-4 text-gray-600">
+                            {cita.propietario}
+                          </td>
+
+                          <td className="px-6 py-4 text-gray-600">
+                            {cita.mascotaId}
+                          </td>
+
+                          <td className="px-6 py-4 text-gray-600">
+                            {cita.motivo}
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
+                              {cita.estado}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                </div>
+              )}
+
+            </div>
+          </>
         )}
 
       </div>
