@@ -1,63 +1,4 @@
-/*let mascotas = [
-    {
-        id: 1,
-        nombre: "Max",
-        especie: "Perro",
-        edad: 5
-    },
-    {
-        id: 2,
-        nombre: "Michi",
-        especie: "Gato",
-        edad: 2
-    }
-];
-
-export const obtenerTodas = () => {
-    return mascotas;
-};
-
-export const obtenerPorId = (id) => {
-    return mascotas.find(m => m.id == id);
-};
-
-export const crear = (datos) => {
-
-    const mascota = {
-        id: mascotas.length + 1,
-        ...datos
-    };
-
-    mascotas.push(mascota);
-
-    return mascota;
-
-};
-
-export const actualizar = (id, datos) => {
-
-    const indice = mascotas.findIndex(m => m.id == id);
-
-    if (indice !== -1) {
-
-        mascotas[indice] = {
-            ...mascotas[indice],
-            ...datos
-        };
-
-        return mascotas[indice];
-    }
-
-    return null;
-
-};
-
-export const eliminar = (id) => {
-
-    mascotas = mascotas.filter(m => m.id != id);
-
-};*/
-import db from "../config/firebase.js";
+/*import db from "../config/firebase.js";
 
 // Obtener todas las mascotas
 export const obtenerTodas = async () => {
@@ -85,16 +26,24 @@ export const obtenerPorId = async (id) => {
 
 // Crear una mascota
 export const crear = async (datos) => {
-    const docRef = await db.collection("mascotas").add(datos);
+
+    const mascota = {
+        ...datos,
+        fechaRegistro: new Date().toISOString(),
+        fechaActualizacion: new Date().toISOString()
+    };
+
+    const docRef = await db.collection("mascotas").add(mascota);
 
     return {
         id: docRef.id,
-        ...datos
+        ...mascota
     };
 };
 
 // Actualizar una mascota
 export const actualizar = async (id, datos) => {
+
     const docRef = db.collection("mascotas").doc(id);
 
     const doc = await docRef.get();
@@ -103,7 +52,15 @@ export const actualizar = async (id, datos) => {
         return null;
     }
 
-    await docRef.update(datos);
+    // Evita modificar el ID si viene en el body
+    delete datos.id;
+
+    const mascotaActualizada = {
+        ...datos,
+        fechaActualizacion: new Date().toISOString()
+    };
+
+    await docRef.update(mascotaActualizada);
 
     const actualizado = await docRef.get();
 
@@ -115,6 +72,7 @@ export const actualizar = async (id, datos) => {
 
 // Eliminar una mascota
 export const eliminar = async (id) => {
+
     const docRef = db.collection("mascotas").doc(id);
 
     const doc = await docRef.get();
@@ -126,4 +84,23 @@ export const eliminar = async (id) => {
     await docRef.delete();
 
     return true;
-};
+};*/
+
+import * as firestore from "./firestore.service.js";
+
+const COLECCION = "mascotas";
+
+export const obtenerTodas = () =>
+    firestore.obtenerTodos(COLECCION);
+
+export const obtenerPorId = (id) =>
+    firestore.obtenerPorId(COLECCION, id);
+
+export const crear = (datos) =>
+    firestore.crear(COLECCION, datos);
+
+export const actualizar = (id, datos) =>
+    firestore.actualizar(COLECCION, id, datos);
+
+export const eliminar = (id) =>
+    firestore.eliminar(COLECCION, id);
