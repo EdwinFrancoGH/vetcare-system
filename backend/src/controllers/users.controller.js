@@ -29,7 +29,7 @@ export const createUser = async (req, res) => {
             return res.status(400).json({ error: 'Faltan campos obligatorios' });
         }
 
-        if (!['Administrador', 'Recepcionista', 'Veterinario'].includes(role)) {
+        if (!['Administrador', 'Recepcionista', 'Veterinario', 'Cliente'].includes(role)) {
             return res.status(400).json({ error: 'Rol inválido' });
         }
 
@@ -64,7 +64,7 @@ export const updateUserRole = async (req, res) => {
         const { uid } = req.params;
         const { role } = req.body;
 
-        if (!role || !['Administrador', 'Recepcionista', 'Veterinario'].includes(role)) {
+        if (!role || !['Administrador', 'Recepcionista', 'Veterinario', 'Cliente'].includes(role)) {
             return res.status(400).json({ error: 'Rol inválido o no proporcionado' });
         }
 
@@ -111,7 +111,7 @@ export const updateUser = async (req, res) => {
             return res.status(400).json({ error: 'Faltan campos obligatorios' });
         }
 
-        if (!['Administrador', 'Recepcionista', 'Veterinario'].includes(role)) {
+        if (!['Administrador', 'Recepcionista', 'Veterinario', 'Cliente'].includes(role)) {
             return res.status(400).json({ error: 'Rol inválido' });
         }
 
@@ -150,31 +150,53 @@ export const updateUser = async (req, res) => {
 };
 
 // Actualizar perfil propio (No requiere ser admin, pero no puede cambiar rol)
+// Acepta name/password (como antes) y, opcionalmente, photoURL: una foto de
+// perfil ya redimensionada y codificada en base64 por el frontend
+// (ver frontend/src/utils/image.js). Se guarda directo en el documento de
+// Firestore del usuario porque el proyecto no usa Firebase Storage.
 export const updateProfile = async (req, res) => {
     try {
         const uid = req.user.uid;
-        const { name, password } = req.body;
+        const { name, password, photoURL } = req.body;
 
-        if (!name) {
-            return res.status(400).json({ error: 'El nombre es obligatorio' });
+        if (!name && !password && photoURL === undefined) {
+            return res.status(400).json({ error: 'No hay datos para actualizar' });
         }
 
-        // 1. Actualizar en Firebase Auth
-        const updateDataAuth = {
-            displayName: name
-        };
-        
-        if (password && password.length >= 6) {
-            updateDataAuth.password = password;
+        // Límite de seguridad extra además del límite de Express: una
+        // imagen en base64 nunca debería superar ~1.5MB (Firestore limita
+        // cada documento a 1MiB en total).
+        if (photoURL && photoURL.length > 1_500_000) {
+            return res.status(400).json({ error: 'La imagen es demasiado grande.' });
         }
 
-        await auth.updateUser(uid, updateDataAuth);
+        // 1. Actualizar en Firebase Auth (solo si cambia nombre o contraseña)
+        if (name || (password && password.length >= 6)) {
+            const updateDataAuth = {};
+
+            if (name) {
+                updateDataAuth.displayName = name;
+            }
+
+            if (password && password.length >= 6) {
+                updateDataAuth.password = password;
+            }
+
+            await auth.updateUser(uid, updateDataAuth);
+        }
 
         // 2. Actualizar en Firestore
         const updateDataFirestore = {
-            name,
             updatedAt: new Date().toISOString()
         };
+
+        if (name) {
+            updateDataFirestore.name = name;
+        }
+
+        if (photoURL !== undefined) {
+            updateDataFirestore.photoURL = photoURL;
+        }
 
         await db.collection('usuarios').doc(uid).update(updateDataFirestore);
 

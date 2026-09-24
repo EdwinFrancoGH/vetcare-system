@@ -4,6 +4,13 @@ import {
     crearVenta
 } from "../services/ventas.service.js";
 
+import { enviarFacturaVenta } from "../utils/mailer.js";
+
+// Formato de correo básico para validar antes de intentar el envío
+// (no reemplaza una validación seria, solo evita mandar a algo que
+// claramente no es un correo).
+const PATRON_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Obtener todas las ventas
 export const obtenerVentas = async (req, res) => {
     try {
@@ -56,7 +63,7 @@ export const obtenerVentaPorId = async (req, res) => {
 // Registrar nueva venta
 export const registrarVenta = async (req, res) => {
     try {
-        const { productos, cliente, metodoPago } = req.body;
+        const { productos, cliente, metodoPago, correoCliente } = req.body;
 
         // Validar que exista al menos un producto
         if (!Array.isArray(productos) || productos.length === 0) {
@@ -85,16 +92,40 @@ export const registrarVenta = async (req, res) => {
             }
         }
 
+        // El correo es opcional a nivel de API (por si alguna vez se
+        // registra una venta sin factura por correo), pero si viene,
+        // tiene que tener forma de correo válida.
+        const correoLimpio = (correoCliente || "").trim();
+
+        if (correoLimpio && !PATRON_CORREO.test(correoLimpio)) {
+            return res.status(400).json({
+                ok: false,
+                message: "El correo electrónico del cliente no es válido."
+            });
+        }
+
         const venta = await crearVenta({
             productos,
             cliente,
-            metodoPago
+            metodoPago,
+            correoCliente: correoLimpio
+        });
+
+        // La factura se envía DESPUÉS de que la venta ya quedó guardada
+        // y el inventario ya se descontó: si el correo falla (SMTP sin
+        // configurar, credenciales inválidas, etc.) la venta no se
+        // pierde ni se revierte, solo se informa que no se pudo enviar.
+        const resultadoCorreo = await enviarFacturaVenta({
+            correoDestino: correoLimpio,
+            venta
         });
 
         res.status(201).json({
             ok: true,
             message: "Venta registrada correctamente.",
-            data: venta
+            data: venta,
+            facturaEnviada: resultadoCorreo.enviado,
+            facturaMotivo: resultadoCorreo.enviado ? undefined : resultadoCorreo.motivo
         });
 
     } catch (error) {

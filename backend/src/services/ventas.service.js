@@ -26,7 +26,7 @@ export const obtenerPorId = async (id) => {
 
 // Crear una venta y descontar existencias
 export const crearVenta = async (datos) => {
-    const { productos, cliente = "", metodoPago = "Efectivo" } = datos;
+    const { productos, cliente = "", metodoPago = "Efectivo", correoCliente = "" } = datos;
 
     const resultado = await db.runTransaction(async transaction => {
         const productosVenta = [];
@@ -108,6 +108,7 @@ export const crearVenta = async (datos) => {
 
         const venta = {
             cliente,
+            correoCliente,
             productos: productosVenta,
             metodoPago,
             total,
