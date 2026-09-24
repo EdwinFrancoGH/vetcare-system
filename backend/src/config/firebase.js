@@ -15,7 +15,18 @@ import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 
-import serviceAccount from "../../credentials/firebase-key.json" with { type: "json" };
+import { readFileSync } from "node:fs";
+
+// Credenciales de Firebase Admin:
+// - En producción (Render, etc.) se leen de la variable de entorno
+//   FIREBASE_SERVICE_ACCOUNT, con el contenido completo del JSON.
+// - En local, si esa variable no existe, se usa el archivo
+//   backend/credentials/firebase-key.json (que NO se sube a GitHub).
+const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    : JSON.parse(
+        readFileSync(new URL("../../credentials/firebase-key.json", import.meta.url), "utf8")
+    );
 
 let app;
 if (getApps().length === 0) {
