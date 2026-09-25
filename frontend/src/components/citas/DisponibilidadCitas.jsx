@@ -13,6 +13,20 @@ import {
 } from "../../utils/citas";
 import ReservarCitaModal from "./ReservarCitaModal";
 
+// Distingue un backend caído / URL mal configurada (sin respuesta) de un
+// error que el servidor sí respondió (401, 403, 500...), para no culpar
+// siempre a la conexión.
+function mensajeDeError(error) {
+    if (!error?.response) {
+        return "No se pudo conectar con el servidor. Verifica que el backend esté corriendo.";
+    }
+
+    return (
+        error.response.data?.message ||
+        `El servidor respondió con un error (${error.response.status}).`
+    );
+}
+
 // Vista Cliente (dueño de mascota): muestra, semana por semana, los
 // horarios disponibles de un veterinario (calculados a partir de su
 // horario semanal de atención) para que el usuario elija uno y lo
@@ -49,15 +63,29 @@ export default function DisponibilidadCitas() {
 
         try {
 
-            const [respHorarios, respMascotas] = await Promise.all([
+            // allSettled: si falla la carga de mascotas, igual se muestran
+            // los horarios disponibles. Antes, con Promise.all, cualquier
+            // error de /mascotas (como el 403 que recibía un Cliente) tumbaba
+            // toda la vista con el mensaje engañoso de "no se pudo conectar".
+            const [resHorarios, resMascotas] = await Promise.allSettled([
                 obtenerHorarios(),
                 obtenerMascotas(),
             ]);
 
-            const nombres = respHorarios.data.data.map((h) => h.veterinario);
+            if (resHorarios.status === "rejected") {
+                throw resHorarios.reason;
+            }
+
+            const nombres = resHorarios.value.data.data.map((h) => h.veterinario);
 
             setVeterinarios(nombres);
-            setMascotas(respMascotas.data.data);
+
+            if (resMascotas.status === "fulfilled") {
+                setMascotas(resMascotas.value.data.data);
+            } else {
+                console.error("Error al cargar mascotas:", resMascotas.reason);
+                setMascotas([]);
+            }
 
             if (nombres.length > 0) {
                 setVeterinarioSeleccionado(nombres[0]);
@@ -68,7 +96,7 @@ export default function DisponibilidadCitas() {
         } catch (error) {
 
             console.error("Error al cargar médicos disponibles:", error);
-            setError("No se pudo conectar con el servidor. Verifica que el backend esté corriendo.");
+            setError(mensajeDeError(error));
             setCargando(false);
 
         }
@@ -93,10 +121,7 @@ export default function DisponibilidadCitas() {
         } catch (error) {
 
             console.error("Error al cargar la disponibilidad de citas:", error);
-            setError(
-                error.response?.data?.message ||
-                "No se pudo conectar con el servidor. Verifica que el backend esté corriendo."
-            );
+            setError(mensajeDeError(error));
             setDisponibles([]);
 
         } finally {

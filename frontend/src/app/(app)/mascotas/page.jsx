@@ -65,9 +65,13 @@ import { eliminarMascota } from "../../../services/mascotas.service";//servicio 
 import MascotaForm from "../../../components/mascotas/MascotaForm";//importamos el form
 import ConfirmModal from "../../../components/ui/ConfirmModal";//modal de taiwin
 import RequireRole from "../../../components/auth/RequireRole";
+import { useAuth } from "../../../context/AuthContext";
 
 
 function MascotasPage() {
+
+    const { userRole } = useAuth();
+    const esCliente = userRole === "Cliente";
 
     const [mascotas, setMascotas] = useState([]);
     const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -148,7 +152,7 @@ function MascotasPage() {
             <div className="flex justify-between items-center mb-6">
 
                 <h1 className="text-4xl font-bold text-gray-900">
-                    Gestión de Mascotas
+                    {esCliente ? "Mis Mascotas" : "Gestión de Mascotas"}
                 </h1>
 
                 <button
@@ -177,6 +181,7 @@ function MascotasPage() {
             mascotas={mascotas}
             onEditar={editarMascota}
             onEliminar={borrarMascota}
+            mostrarFicha={!esCliente}
             />
 
             {/* AGREGO EL MODAL */}
@@ -196,12 +201,11 @@ function MascotasPage() {
 
 }
 
-// Mascotas/Historial/Vacunas muestran a TODOS los pacientes de la
-// clínica (no están filtrados por dueño), así que se limitan al
-// personal clínico. Un "Cliente" no debe listar mascotas ajenas.
+// El personal ve todas las mascotas; un "Cliente" también entra, pero el
+// backend (mascotas.controller.js) solo le devuelve las suyas.
 export default function MascotasPageGuard() {
     return (
-        <RequireRole roles={["Administrador", "Recepcionista", "Veterinario"]}>
+        <RequireRole roles={["Administrador", "Recepcionista", "Veterinario", "Cliente"]}>
             <MascotasPage />
         </RequireRole>
     );

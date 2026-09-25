@@ -22,15 +22,9 @@ export default function Home() {
             return;
         }
 
-        // Cliente no tiene acceso al Dashboard clínico (ver
-        // components/layout/Sidebar.jsx y RequireRole en cada página):
-        // su pantalla de inicio es Citas, donde reserva/consulta las
-        // suyas.
-        if (userRole === "Cliente") {
-            router.replace("/citas");
-        } else {
-            router.replace("/dashboard");
-        }
+        // Todos entran al Dashboard: el personal ve el panel clínico y un
+        // Cliente ve su propio panel (sus mascotas y sus citas).
+        router.replace("/dashboard");
     }, [user, userRole, loading, router]);
 
     return (
