@@ -40,8 +40,12 @@ export default function MascotaForm({ onClose }) {
 
 import { useEffect, useState } from "react";
 import { crearMascota,actualizarMascota } from "../../services/mascotas.service";
+import { useAuth } from "../../context/AuthContext";
 
 export default function MascotaForm({ mascota, onClose, onSuccess }) {
+  const { userRole, userData } = useAuth();
+  const esCliente = userRole === "Cliente";
+
   const [formData, setFormData] = useState({
     nombre: "",
     especie: "",
@@ -78,9 +82,16 @@ useEffect(() => {
             estado: mascota.estado || "Activo",
         });
 
+    } else if (esCliente) {
+        // Un Cliente registra mascotas a su nombre: se precarga su nombre.
+        setFormData((prev) => ({
+            ...prev,
+            propietario: prev.propietario || userData?.name || "",
+            telefono: prev.telefono || userData?.phone || userData?.telefono || "",
+        }));
     }
 
-}, [mascota]);
+}, [mascota, esCliente, userData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -163,7 +174,7 @@ const handleSubmit = async (e) => {
 
         console.error(error);
 
-        alert("Ocurrió un error.");
+        alert(error.response?.data?.message || "Ocurrió un error.");
 
     }
 

@@ -13,6 +13,8 @@ import {
     obtenerPorVeterinario as obtenerHorarioDeVeterinario
 } from "../services/horarios.service.js";
 
+import { obtenerPorId as obtenerMascotaPorId } from "../services/mascotas.service.js";
+
 import { validarCita } from "../validators/cita.validator.js";
 import { generarDisponibilidad, esHorarioValido, sumarDiasISO } from "../utils/disponibilidad.js";
 
@@ -207,6 +209,18 @@ export const obtenerCitasPorMascota = async (req, res) => {
     try {
         const { mascotaId } = req.params;
 
+        // Un Cliente solo puede ver las citas de sus propias mascotas.
+        if (req.userRole === "Cliente") {
+            const mascota = await obtenerMascotaPorId(mascotaId);
+
+            if (!mascota || mascota.propietarioUid !== req.user.uid) {
+                return res.status(404).json({
+                    ok: false,
+                    message: "Mascota no encontrada."
+                });
+            }
+        }
+
         const citas = await obtenerPorMascota(mascotaId);
 
         res.status(200).json({
@@ -307,7 +321,24 @@ export const reservarCita = async (req, res) => {
             });
         }
 
-        const resultado = await agendarCita(req.body, "reservada");
+        const datos = { ...req.body };
+
+        // Un Cliente solo puede reservar para una mascota suya
+        // (req.userRole lo carga cargarRol, ver app.js).
+        if (req.userRole === "Cliente") {
+            const mascota = await obtenerMascotaPorId(datos.mascotaId);
+
+            if (!mascota || mascota.propietarioUid !== req.user.uid) {
+                return res.status(403).json({
+                    ok: false,
+                    message: "Solo puedes reservar citas para tus propias mascotas."
+                });
+            }
+
+            datos.clienteUid = req.user.uid;
+        }
+
+        const resultado = await agendarCita(datos, "reservada");
 
         if (resultado.error) {
             return res.status(resultado.status).json({

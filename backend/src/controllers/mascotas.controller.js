@@ -1,5 +1,6 @@
 import {
     obtenerTodas,
+    obtenerPorPropietario,
     obtenerPorId,
     crear,
     actualizar,
@@ -8,10 +9,22 @@ import {
 
 import { validarMascota } from "../validators/mascota.validator.js";
 
-// Obtener todas las mascotas
+// req.userRole lo carga el middleware cargarRol (ver app.js).
+// - Personal (Administrador/Recepcionista/Veterinario): ve y gestiona
+//   todas las mascotas de la clínica.
+// - Cliente: solo ve y gestiona las mascotas cuyo propietarioUid es el
+//   suyo. Las mascotas que registra quedan ligadas a su cuenta.
+const esCliente = (req) => req.userRole === "Cliente";
+
+const perteneceAlUsuario = (mascota, req) =>
+    !esCliente(req) || mascota.propietarioUid === req.user.uid;
+
+// Obtener todas las mascotas (o solo las del Cliente logueado)
 export const obtenerMascotas = async (req, res) => {
     try {
-        const mascotas = await obtenerTodas();
+        const mascotas = esCliente(req)
+            ? await obtenerPorPropietario(req.user.uid)
+            : await obtenerTodas();
 
         res.status(200).json({
             ok: true,
@@ -35,7 +48,9 @@ export const obtenerMascotaPorId = async (req, res) => {
 
         const mascota = await obtenerPorId(id);
 
-        if (!mascota) {
+        // A un Cliente se le responde 404 (no 403) para no revelar que
+        // existe una mascota ajena con ese id.
+        if (!mascota || !perteneceAlUsuario(mascota, req)) {
             return res.status(404).json({
                 ok: false,
                 message: "Mascota no encontrada."
@@ -61,15 +76,24 @@ export const obtenerMascotaPorId = async (req, res) => {
 export const crearMascota = async (req, res) => {
     try {
 
-            const errorValidacion = validarMascota(req.body);
+        const errorValidacion = validarMascota(req.body);
 
-            if (errorValidacion) {
-                return res.status(400).json({
-                    ok: false,
-                    message: errorValidacion
-                });
-            }
-        const nuevaMascota = await crear(req.body);
+        if (errorValidacion) {
+            return res.status(400).json({
+                ok: false,
+                message: errorValidacion
+            });
+        }
+
+        const datos = { ...req.body };
+
+        // Un Cliente siempre registra la mascota a su propio nombre.
+        if (esCliente(req)) {
+            datos.propietarioUid = req.user.uid;
+            datos.propietarioEmail = req.user.email || "";
+        }
+
+        const nuevaMascota = await crear(datos);
 
         res.status(201).json({
             ok: true,
@@ -91,22 +115,35 @@ export const actualizarMascota = async (req, res) => {
     try {
 
         const { id } = req.params;
-            const errorValidacion = validarMascota(req.body);
 
-            if (errorValidacion) {
-                return res.status(400).json({
-                    ok: false,
-                    message: errorValidacion
-                });
-            }
-        const mascota = await actualizar(id, req.body);
+        const errorValidacion = validarMascota(req.body);
 
-        if (!mascota) {
+        if (errorValidacion) {
+            return res.status(400).json({
+                ok: false,
+                message: errorValidacion
+            });
+        }
+
+        const existente = await obtenerPorId(id);
+
+        if (!existente || !perteneceAlUsuario(existente, req)) {
             return res.status(404).json({
                 ok: false,
                 message: "Mascota no encontrada."
             });
         }
+
+        const datos = { ...req.body };
+        delete datos.id;
+
+        // Un Cliente no puede "regalar" su mascota a otra cuenta.
+        if (esCliente(req)) {
+            delete datos.propietarioUid;
+            delete datos.propietarioEmail;
+        }
+
+        const mascota = await actualizar(id, datos);
 
         res.status(200).json({
             ok: true,
@@ -129,14 +166,16 @@ export const eliminarMascota = async (req, res) => {
 
         const { id } = req.params;
 
-        const eliminada = await eliminar(id);
+        const existente = await obtenerPorId(id);
 
-        if (!eliminada) {
+        if (!existente || !perteneceAlUsuario(existente, req)) {
             return res.status(404).json({
                 ok: false,
                 message: "Mascota no encontrada."
             });
         }
+
+        await eliminar(id);
 
         res.status(200).json({
             ok: true,

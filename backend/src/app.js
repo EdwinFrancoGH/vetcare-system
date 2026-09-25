@@ -17,7 +17,7 @@ import ventasRoutes from "./routes/ventas.routes.js";
 import reportesRoutes from "./routes/reportes.routes.js";
 import usersRoutes from "./routes/users.routes.js";
 
-import { verifyToken, verifyRoles } from "./middlewares/auth.middleware.js";
+import { verifyToken, verifyRoles, cargarRol } from "./middlewares/auth.middleware.js";
 
 const app = express();
 
@@ -36,20 +36,21 @@ app.use("/api/auth", authRoutes);
 // tenían ninguna protección (la rama citas/historial nunca integró login).
 // Ahora que el login se integró, se protegen igual que ventas/clientes.
 //
-// Además de estar autenticado, mascotas/historiales/vacunas muestran a
-// TODOS los pacientes de la clínica (no están filtrados por dueño), así
-// que se limitan al personal (Administrador/Recepcionista/Veterinario):
-// un "Cliente" no debe poder listar el historial médico de mascotas que
-// no son suyas. citas/horarios sí los usa un Cliente (reservar su cita),
+// Además de estar autenticado, historiales/vacunas muestran a TODOS los
+// pacientes de la clínica (no están filtrados por dueño), así que se
+// limitan al personal (Administrador/Recepcionista/Veterinario). Mascotas
+// sí está filtrada por dueño (propietarioUid): un Cliente ve solo las suyas. citas/horarios sí los usa un Cliente (reservar su cita),
 // así que solo llevan verifyToken aquí; las rutas de citas/horarios que
 // son exclusivas de personal se restringen dentro de sus propios
 // routers (ver citas.routes.js y horarios.routes.js).
 const SOLO_PERSONAL_CLINICO = verifyRoles("Administrador", "Recepcionista", "Veterinario");
 
-app.use("/api/mascotas", verifyToken, SOLO_PERSONAL_CLINICO, mascotasRoutes);
+// Mascotas: el personal ve todas; un Cliente solo ve y gestiona las
+// suyas (filtradas por propietarioUid en mascotas.controller.js).
+app.use("/api/mascotas", verifyToken, cargarRol, mascotasRoutes);
 app.use("/api/historiales", verifyToken, SOLO_PERSONAL_CLINICO, historialRoutes);
 app.use("/api/vacunas", verifyToken, SOLO_PERSONAL_CLINICO, vacunasRoutes);
-app.use("/api/citas", verifyToken, citasRoutes);
+app.use("/api/citas", verifyToken, cargarRol, citasRoutes);
 app.use("/api/horarios", verifyToken, horariosRoutes);
 
 // clientes.routes.js y users.routes.js ya aplican verifyToken (y

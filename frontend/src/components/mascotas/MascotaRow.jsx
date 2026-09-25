@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-export default function MascotaRow({ mascota, onEditar, onEliminar}) {
+export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha = true }) {
 
     return (
         <tr className="border-b hover:bg-gray-50 text-gray-900">
@@ -19,16 +19,19 @@ export default function MascotaRow({ mascota, onEditar, onEliminar}) {
 
             <td className="p-4 text-center">
 
-            <Link
-                href={`/mascotas/${mascota.id}`}
-                className="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded inline-block mr-2"
-            >
-                Ver ficha
-            </Link>
+            {/* La ficha clínica usa historiales/vacunas, que son solo del personal */}
+            {mostrarFicha && (
+                <Link
+                    href={`/mascotas/${mascota.id}`}
+                    className="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded inline-block mr-2"
+                >
+                    Ver ficha
+                </Link>
+            )}
 
             <button
                 onClick={() => onEditar(mascota)}
-                className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
+                className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded mr-2"
             >
                 Editar
             </button>

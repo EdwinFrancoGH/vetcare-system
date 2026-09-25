@@ -93,6 +93,10 @@ const COLECCION = "mascotas";
 export const obtenerTodas = () =>
     firestore.obtenerTodos(COLECCION);
 
+// Mascotas de un dueño concreto (usuario con rol "Cliente")
+export const obtenerPorPropietario = (uid) =>
+    firestore.obtenerPorCampo(COLECCION, "propietarioUid", uid);
+
 export const obtenerPorId = (id) =>
     firestore.obtenerPorId(COLECCION, id);
 

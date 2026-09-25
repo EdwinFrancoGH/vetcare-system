@@ -88,3 +88,34 @@ export const verifyRoles = (...rolesPermitidos) => {
         }
     };
 };
+
+// Carga el rol del usuario (cualquier rol, incluido "Cliente") en
+// req.userRole SIN restringir el acceso. Se usa en módulos que comparten
+// personal y clientes (mascotas, citas), donde el controlador decide qué
+// datos devolver según el rol: el personal ve todo, un Cliente solo lo suyo.
+export const cargarRol = async (req, res, next) => {
+    try {
+        if (!req.user || !req.user.uid) {
+            return res.status(401).json({ error: 'No autorizado', message: 'Usuario no autenticado' });
+        }
+
+        const userDoc = await db.collection('usuarios').doc(req.user.uid).get();
+
+        if (!userDoc.exists) {
+            return res.status(403).json({
+                error: 'Prohibido',
+                message: 'Tu usuario no está registrado en el sistema'
+            });
+        }
+
+        req.userRole = userDoc.data().role;
+        req.userData = userDoc.data();
+        next();
+    } catch (error) {
+        console.error('Error cargando rol del usuario:', error);
+        return res.status(500).json({
+            error: 'Error del servidor',
+            message: 'No se pudo verificar el rol del usuario'
+        });
+    }
+};

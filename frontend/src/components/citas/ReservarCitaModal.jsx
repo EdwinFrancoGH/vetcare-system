@@ -133,6 +133,12 @@ export default function ReservarCitaModal({ cita, mascotas, onClose, onSuccess }
                                 </option>
                             ))}
                         </select>
+
+                        {mascotas.length === 0 && (
+                            <p className="mt-2 text-sm text-amber-700">
+                                Aún no tienes mascotas registradas. Regístrala primero en el menú &quot;Mascotas&quot;.
+                            </p>
+                        )}
                     </div>
 
                     <div>

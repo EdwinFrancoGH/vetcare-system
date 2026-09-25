@@ -24,8 +24,9 @@ import { useAuth } from "../../context/AuthContext";
 // Esto es solo la interfaz: lo que de verdad impide el acceso a los
 // datos es la autorización del backend (ver auth.middleware.js).
 const menu = [
-    { name: "Dashboard", href: "/dashboard", icon: <FaHome />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
-    { name: "Mascotas", href: "/mascotas", icon: <FaDog />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
+    { name: "Dashboard", href: "/dashboard", icon: <FaHome />, roles: ["Administrador", "Recepcionista", "Veterinario", "Cliente"] },
+    // Un Cliente también ve "Mascotas": el backend le devuelve solo las suyas.
+    { name: "Mascotas", href: "/mascotas", icon: <FaDog />, roles: ["Administrador", "Recepcionista", "Veterinario", "Cliente"] },
     { name: "Historial Clínico", href: "/historial", icon: <FaNotesMedical />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
     { name: "Citas", href: "/citas", icon: <FaCalendarAlt /> },
     { name: "Vacunas", href: "/vacunas", icon: <FaSyringe />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
