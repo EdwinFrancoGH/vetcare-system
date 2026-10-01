@@ -274,9 +274,9 @@ export default function HomeScreen() {
           {/* Mascotas */}
 
           <Pressable
-            style={styles.navItem}
-            onPress={() => console.log('Mascotas')}
-          >
+  style={styles.navItem}
+  onPress={() => router.push('/mascotas')}
+>
 
             <Ionicons
               name="paw-outline"
