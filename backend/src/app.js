@@ -43,13 +43,26 @@ app.use("/api/auth", authRoutes);
 // así que solo llevan verifyToken aquí; las rutas de citas/horarios que
 // son exclusivas de personal se restringen dentro de sus propios
 // routers (ver citas.routes.js y horarios.routes.js).
-const SOLO_PERSONAL_CLINICO = verifyRoles("Administrador", "Recepcionista", "Veterinario");
+const SOLO_PERSONAL_CLINICO = verifyRoles(
+    "Administrador",
+    "Recepcionista",
+    "Veterinario"
+);
 
 // Mascotas: el personal ve todas; un Cliente solo ve y gestiona las
 // suyas (filtradas por propietarioUid en mascotas.controller.js).
 app.use("/api/mascotas", verifyToken, cargarRol, mascotasRoutes);
-app.use("/api/historiales", verifyToken, SOLO_PERSONAL_CLINICO, historialRoutes);
-app.use("/api/vacunas", verifyToken, SOLO_PERSONAL_CLINICO, vacunasRoutes);
+
+// Historiales: ahora también se permite el acceso al Cliente.
+// El controlador verifica que la mascota pertenezca al Cliente antes
+// de devolver su historial. El personal mantiene acceso normal.
+app.use("/api/historiales", verifyToken, cargarRol, historialRoutes);
+
+// Vacunas: ahora también se permite el acceso al Cliente.
+// El controlador verifica que la mascota asociada pertenezca al Cliente
+// antes de devolver sus vacunas. El personal mantiene acceso normal.
+app.use("/api/vacunas", verifyToken, cargarRol, vacunasRoutes);
+
 app.use("/api/citas", verifyToken, cargarRol, citasRoutes);
 app.use("/api/horarios", verifyToken, horariosRoutes);
 
@@ -62,7 +75,10 @@ app.use("/api/users", usersRoutes);
 // Módulos de Inventario y Ventas: son de gestión del negocio, no
 // clínicos, así que un Veterinario tampoco los necesita — solo
 // Administrador/Recepcionista.
-const SOLO_ADMINISTRACION = verifyRoles("Administrador", "Recepcionista");
+const SOLO_ADMINISTRACION = verifyRoles(
+    "Administrador",
+    "Recepcionista"
+);
 
 app.use("/api/productos", verifyToken, SOLO_ADMINISTRACION, productosRoutes);
 app.use("/api/inventario", verifyToken, SOLO_ADMINISTRACION, inventarioRoutes);

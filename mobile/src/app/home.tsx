@@ -1,4 +1,5 @@
 import React from 'react';
+
 import {
   SafeAreaView,
   StyleSheet,
@@ -7,6 +8,7 @@ import {
   Pressable,
   ScrollView,
 } from 'react-native';
+
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
@@ -35,6 +37,7 @@ export default function HomeScreen() {
           ========================================= */}
 
           <View style={styles.header}>
+
             <Text style={styles.greeting}>
               ¡Hola, Ana!
             </Text>
@@ -42,7 +45,9 @@ export default function HomeScreen() {
             <Text style={styles.welcomeText}>
               Bienvenida de vuelta a VetCare
             </Text>
+
           </View>
+
 
           {/* =========================================
               TARJETAS DE RESUMEN
@@ -54,9 +59,12 @@ export default function HomeScreen() {
 
             <Pressable
               style={styles.summaryCard}
-              onPress={() => console.log('Mis mascotas')}
+              onPress={() => router.push('/mascotas')}
+              hitSlop={8}
             >
+
               <View style={styles.summaryHeader}>
+
                 <Text style={styles.summaryNumber}>
                   2
                 </Text>
@@ -66,20 +74,26 @@ export default function HomeScreen() {
                   size={18}
                   color={colors.primary}
                 />
+
               </View>
 
               <Text style={styles.summaryLabel}>
                 Mis mascotas
               </Text>
+
             </Pressable>
+
 
             {/* Próxima cita */}
 
             <Pressable
               style={styles.summaryCard}
-              onPress={() => console.log('Próxima cita')}
+              onPress={() => router.push('/citas')}
+              hitSlop={8}
             >
+
               <View style={styles.summaryHeader}>
+
                 <Text style={styles.summaryNumber}>
                   1
                 </Text>
@@ -89,20 +103,26 @@ export default function HomeScreen() {
                   size={18}
                   color={colors.primary}
                 />
+
               </View>
 
               <Text style={styles.summaryLabel}>
                 Próxima cita
               </Text>
+
             </Pressable>
+
 
             {/* Vacunas */}
 
             <Pressable
               style={styles.summaryCard}
-              onPress={() => console.log('Vacunas')}
+              onPress={() => router.push('/mascotas')}
+              hitSlop={8}
             >
+
               <View style={styles.summaryHeader}>
+
                 <Text style={styles.summaryNumber}>
                   2
                 </Text>
@@ -112,14 +132,17 @@ export default function HomeScreen() {
                   size={18}
                   color={colors.primary}
                 />
+
               </View>
 
               <Text style={styles.summaryLabel}>
                 Vacunas próx.
               </Text>
+
             </Pressable>
 
           </View>
+
 
           {/* =========================================
               PRÓXIMA CITA
@@ -129,6 +152,7 @@ export default function HomeScreen() {
             Próxima cita
           </Text>
 
+
           <View style={styles.appointmentCard}>
 
             {/* Mascota */}
@@ -136,14 +160,18 @@ export default function HomeScreen() {
             <View style={styles.petHeader}>
 
               <View style={styles.petAvatar}>
+
                 <Ionicons
                   name="paw"
                   size={26}
                   color={colors.primary}
                 />
+
               </View>
 
+
               <View style={styles.petInfo}>
+
                 <Text style={styles.petName}>
                   Max
                 </Text>
@@ -151,13 +179,16 @@ export default function HomeScreen() {
                 <Text style={styles.petService}>
                   Consulta general
                 </Text>
+
               </View>
 
             </View>
 
+
             {/* Separador */}
 
             <View style={styles.divider} />
+
 
             {/* Fecha */}
 
@@ -175,6 +206,7 @@ export default function HomeScreen() {
 
             </View>
 
+
             {/* Veterinario */}
 
             <View style={styles.appointmentInfoRow}>
@@ -191,18 +223,23 @@ export default function HomeScreen() {
 
             </View>
 
+
             {/* Botón */}
 
             <Pressable
               style={styles.detailsButton}
-              onPress={() => console.log('Ver detalles')}
+              onPress={() => router.push('/citas')}
+              hitSlop={8}
             >
+
               <Text style={styles.detailsButtonText}>
                 Ver detalles
               </Text>
+
             </Pressable>
 
           </View>
+
 
           {/* =========================================
               RECORDATORIOS
@@ -212,18 +249,23 @@ export default function HomeScreen() {
             Recordatorios
           </Text>
 
+
           <Pressable
             style={styles.reminderCard}
-            onPress={() => console.log('Recordatorio')}
+            onPress={() => router.push('/mascotas')}
+            hitSlop={8}
           >
 
             <View style={styles.reminderIcon}>
+
               <Ionicons
                 name="medkit-outline"
                 size={18}
                 color={colors.primary}
               />
+
             </View>
+
 
             <View style={styles.reminderInfo}>
 
@@ -237,6 +279,7 @@ export default function HomeScreen() {
 
             </View>
 
+
             <Ionicons
               name="chevron-forward"
               size={19}
@@ -245,9 +288,11 @@ export default function HomeScreen() {
 
           </Pressable>
 
+
           <View style={styles.bottomSpace} />
 
         </ScrollView>
+
 
         {/* =========================================
             BARRA INFERIOR
@@ -257,10 +302,14 @@ export default function HomeScreen() {
 
           {/* Inicio */}
 
-          <Pressable style={styles.navItem}>
+          <Pressable
+            style={styles.navItem}
+            onPress={() => router.replace('/home')}
+            hitSlop={12}
+          >
 
             <Ionicons
-              name="home-outline"
+              name="home"
               size={21}
               color={colors.primary}
             />
@@ -271,12 +320,17 @@ export default function HomeScreen() {
 
           </Pressable>
 
+
           {/* Mascotas */}
 
           <Pressable
-  style={styles.navItem}
-  onPress={() => router.push('/mascotas')}
->
+            style={styles.navItem}
+            onPress={() => {
+              console.log('ABRIENDO MASCOTAS DESDE HOME');
+              router.push('/mascotas');
+            }}
+            hitSlop={12}
+          >
 
             <Ionicons
               name="paw-outline"
@@ -290,11 +344,16 @@ export default function HomeScreen() {
 
           </Pressable>
 
+
           {/* Citas */}
 
           <Pressable
             style={styles.navItem}
-            onPress={() => console.log('Citas')}
+            onPress={() => {
+              console.log('ABRIENDO CITAS DESDE HOME');
+              router.push('/citas');
+            }}
+            hitSlop={12}
           >
 
             <Ionicons
@@ -309,11 +368,16 @@ export default function HomeScreen() {
 
           </Pressable>
 
+
           {/* Perfil */}
 
           <Pressable
             style={styles.navItem}
-            onPress={() => router.push('/explore')}
+            onPress={() => {
+              console.log('ABRIENDO PERFIL DESDE HOME');
+              router.push('/explore');
+            }}
+            hitSlop={12}
           >
 
             <Ionicons
@@ -334,6 +398,7 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
+
 
 /* =====================================================
    ESTILOS
@@ -359,6 +424,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
 
+
   /* =========================================
      HEADER
   ========================================= */
@@ -381,6 +447,7 @@ const styles = StyleSheet.create({
     color: '#E9D5FF',
     fontSize: 12.5,
   },
+
 
   /* =========================================
      RESUMEN
@@ -430,6 +497,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+
   /* =========================================
      TÍTULOS
   ========================================= */
@@ -442,6 +510,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 8,
   },
+
 
   /* =========================================
      CITA
@@ -527,6 +596,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+
   /* =========================================
      RECORDATORIOS
   ========================================= */
@@ -581,6 +651,7 @@ const styles = StyleSheet.create({
   bottomSpace: {
     height: 20,
   },
+
 
   /* =========================================
      BARRA INFERIOR

@@ -23,6 +23,16 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="home" />
         <Stack.Screen name="explore" />
+
+        {/* Módulo de Mascotas */}
+        <Stack.Screen name="mascotas" />
+        <Stack.Screen name="agregar-mascota" />
+        <Stack.Screen name="detalle-mascota" />
+
+        {/* Módulo de Citas */}
+        <Stack.Screen name="citas" />
+        <Stack.Screen name="agendar-cita" />
+        <Stack.Screen name="detalle-cita" />
       </Stack>
     </ThemeProvider>
   );

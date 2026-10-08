@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
+import { auth } from '@/config/firebase';
+import { API_URL } from '@/config/api';
 
 const colors = Colors.light;
 
@@ -52,7 +54,12 @@ export default function AgregarMascotaScreen() {
   const [estado, setEstado] = useState('');
   const [mostrarEstados, setMostrarEstados] = useState(false);
 
-  const handleGuardar = () => {
+  const handleVolver = () => {
+    console.log('REGRESANDO A MASCOTAS');
+    router.replace('/mascotas');
+  };
+
+  const handleGuardar = async () => {
     if (!nombre.trim()) {
       Alert.alert(
         'Campo requerido',
@@ -165,29 +172,132 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
-    Alert.alert(
-      'Mascota lista',
-      'Todos los datos fueron validados correctamente. La conexión con el backend se realizará en el siguiente paso.'
-    );
+    try {
+      console.log('================================');
+      console.log('GUARDANDO MASCOTA');
+      console.log('================================');
+
+      const user = auth.currentUser;
+
+      if (!user) {
+        Alert.alert(
+          'Sesión requerida',
+          'No hay una sesión activa. Inicia sesión nuevamente.'
+        );
+        return;
+      }
+
+      console.log('Usuario:', user.email);
+      console.log('UID:', user.uid);
+
+      const token = await user.getIdToken();
+
+      const url = `${API_URL}/api/mascotas`;
+
+      console.log('URL:', url);
+      console.log('Enviando mascota al backend...');
+
+      const mascota = {
+        nombre: nombre.trim(),
+        especie,
+        raza: raza.trim(),
+        sexo,
+        edad: Number(edad),
+        peso: Number(peso),
+        color: color.trim(),
+        fechaNacimiento: fechaNacimiento.trim(),
+        propietario: propietario.trim(),
+        telefono: telefono.trim(),
+        direccion: direccion.trim(),
+        estado,
+      };
+
+      console.log('Datos enviados:', mascota);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(mascota),
+      });
+
+      console.log(
+        'Backend respondió con status:',
+        response.status
+      );
+
+      const responseText = await response.text();
+
+      console.log(
+        'Respuesta del backend:',
+        responseText
+      );
+
+      let data: any = {};
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          `El servidor respondió algo que no es JSON. Status: ${response.status}`
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+          data.error ||
+          'No se pudo registrar la mascota.'
+        );
+      }
+
+      console.log('================================');
+      console.log('MASCOTA CREADA CORRECTAMENTE');
+      console.log('================================');
+
+      Alert.alert(
+        'Mascota registrada',
+        'La mascota fue guardada correctamente.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/mascotas'),
+          },
+        ]
+      );
+
+    } catch (error: any) {
+      console.error('================================');
+      console.error('ERROR AL GUARDAR MASCOTA');
+      console.error('================================');
+      console.error('Error completo:', error);
+      console.error('Mensaje:', error?.message);
+
+      Alert.alert(
+        'Error',
+        error?.message ||
+          'No se pudo guardar la mascota. Intenta nuevamente.'
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
 
-        {/* =========================================
-            HEADER
-        ========================================= */}
-
+        {/* HEADER */}
         <View style={styles.header}>
 
           <Pressable
             style={styles.backButton}
-            onPress={() => router.replace('/mascotas')}
+            onPress={handleVolver}
+            hitSlop={12}
           >
             <Ionicons
               name="arrow-back"
-              size={24}
+              size={28}
               color="#1F2937"
             />
           </Pressable>
@@ -200,11 +310,7 @@ export default function AgregarMascotaScreen() {
 
         </View>
 
-
-        {/* =========================================
-            CONTENIDO
-        ========================================= */}
-
+        {/* CONTENIDO */}
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
@@ -212,10 +318,7 @@ export default function AgregarMascotaScreen() {
           keyboardShouldPersistTaps="handled"
         >
 
-          {/* =========================================
-              FOTO
-          ========================================= */}
-
+          {/* FOTO */}
           <View style={styles.photoSection}>
 
             <Pressable
@@ -240,13 +343,8 @@ export default function AgregarMascotaScreen() {
 
           </View>
 
-
-          {/* =========================================
-              NOMBRE
-          ========================================= */}
-
+          {/* NOMBRE */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Nombre
             </Text>
@@ -259,16 +357,10 @@ export default function AgregarMascotaScreen() {
               onChangeText={setNombre}
               autoCapitalize="words"
             />
-
           </View>
 
-
-          {/* =========================================
-              ESPECIE
-          ========================================= */}
-
+          {/* ESPECIE */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Especie
             </Text>
@@ -279,7 +371,6 @@ export default function AgregarMascotaScreen() {
                 setMostrarEspecies(!mostrarEspecies)
               }
             >
-
               <Text
                 style={[
                   styles.selectText,
@@ -298,13 +389,10 @@ export default function AgregarMascotaScreen() {
                 size={20}
                 color="#9CA3AF"
               />
-
             </Pressable>
-
 
             {mostrarEspecies && (
               <View style={styles.optionsContainer}>
-
                 {especies.map((item) => (
                   <Pressable
                     key={item}
@@ -331,22 +419,14 @@ export default function AgregarMascotaScreen() {
                         color={colors.primary}
                       />
                     )}
-
                   </Pressable>
                 ))}
-
               </View>
             )}
-
           </View>
 
-
-          {/* =========================================
-              RAZA
-          ========================================= */}
-
+          {/* RAZA */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Raza
             </Text>
@@ -359,22 +439,15 @@ export default function AgregarMascotaScreen() {
               onChangeText={setRaza}
               autoCapitalize="words"
             />
-
           </View>
 
-
-          {/* =========================================
-              FECHA DE NACIMIENTO
-          ========================================= */}
-
+          {/* FECHA DE NACIMIENTO */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Fecha de nacimiento
             </Text>
 
             <View style={styles.inputWithIcon}>
-
               <TextInput
                 style={styles.inputSelect}
                 placeholder="DD/MM/AAAA"
@@ -389,24 +462,16 @@ export default function AgregarMascotaScreen() {
                 size={20}
                 color="#9CA3AF"
               />
-
             </View>
-
           </View>
 
-
-          {/* =========================================
-              EDAD
-          ========================================= */}
-
+          {/* EDAD */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Edad
             </Text>
 
             <View style={styles.inputWithUnit}>
-
               <TextInput
                 style={styles.inputWeight}
                 placeholder="Ej. 5"
@@ -419,18 +484,11 @@ export default function AgregarMascotaScreen() {
               <Text style={styles.unitText}>
                 años
               </Text>
-
             </View>
-
           </View>
 
-
-          {/* =========================================
-              SEXO
-          ========================================= */}
-
+          {/* SEXO */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Sexo
             </Text>
@@ -445,7 +503,6 @@ export default function AgregarMascotaScreen() {
                 ]}
                 onPress={() => setSexo('Macho')}
               >
-
                 <Ionicons
                   name="male"
                   size={20}
@@ -465,9 +522,7 @@ export default function AgregarMascotaScreen() {
                 >
                   Macho
                 </Text>
-
               </Pressable>
-
 
               <Pressable
                 style={[
@@ -477,7 +532,6 @@ export default function AgregarMascotaScreen() {
                 ]}
                 onPress={() => setSexo('Hembra')}
               >
-
                 <Ionicons
                   name="female"
                   size={20}
@@ -497,26 +551,18 @@ export default function AgregarMascotaScreen() {
                 >
                   Hembra
                 </Text>
-
               </Pressable>
 
             </View>
-
           </View>
 
-
-          {/* =========================================
-              PESO
-          ========================================= */}
-
+          {/* PESO */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Peso
             </Text>
 
             <View style={styles.inputWithUnit}>
-
               <TextInput
                 style={styles.inputWeight}
                 placeholder="Ej. 28"
@@ -529,18 +575,11 @@ export default function AgregarMascotaScreen() {
               <Text style={styles.unitText}>
                 kg
               </Text>
-
             </View>
-
           </View>
 
-
-          {/* =========================================
-              COLOR
-          ========================================= */}
-
+          {/* COLOR */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Color
             </Text>
@@ -553,16 +592,10 @@ export default function AgregarMascotaScreen() {
               onChangeText={setColor}
               autoCapitalize="words"
             />
-
           </View>
 
-
-          {/* =========================================
-              PROPIETARIO
-          ========================================= */}
-
+          {/* PROPIETARIO */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Propietario
             </Text>
@@ -575,16 +608,10 @@ export default function AgregarMascotaScreen() {
               onChangeText={setPropietario}
               autoCapitalize="words"
             />
-
           </View>
 
-
-          {/* =========================================
-              TELÉFONO
-          ========================================= */}
-
+          {/* TELÉFONO */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Teléfono
             </Text>
@@ -597,16 +624,10 @@ export default function AgregarMascotaScreen() {
               onChangeText={setTelefono}
               keyboardType="phone-pad"
             />
-
           </View>
 
-
-          {/* =========================================
-              DIRECCIÓN
-          ========================================= */}
-
+          {/* DIRECCIÓN */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Dirección
             </Text>
@@ -623,16 +644,10 @@ export default function AgregarMascotaScreen() {
               multiline
               textAlignVertical="top"
             />
-
           </View>
 
-
-          {/* =========================================
-              ESTADO
-          ========================================= */}
-
+          {/* ESTADO */}
           <View style={styles.fieldContainer}>
-
             <Text style={styles.label}>
               Estado
             </Text>
@@ -643,7 +658,6 @@ export default function AgregarMascotaScreen() {
                 setMostrarEstados(!mostrarEstados)
               }
             >
-
               <Text
                 style={[
                   styles.selectText,
@@ -662,13 +676,10 @@ export default function AgregarMascotaScreen() {
                 size={20}
                 color="#9CA3AF"
               />
-
             </Pressable>
-
 
             {mostrarEstados && (
               <View style={styles.optionsContainer}>
-
                 {estados.map((item) => (
                   <Pressable
                     key={item}
@@ -678,7 +689,6 @@ export default function AgregarMascotaScreen() {
                       setMostrarEstados(false);
                     }}
                   >
-
                     <Text
                       style={[
                         styles.optionText,
@@ -696,25 +706,17 @@ export default function AgregarMascotaScreen() {
                         color={colors.primary}
                       />
                     )}
-
                   </Pressable>
                 ))}
-
               </View>
             )}
-
           </View>
 
-
-          {/* =========================================
-              GUARDAR
-          ========================================= */}
-
+          {/* GUARDAR */}
           <Pressable
             style={styles.saveButton}
             onPress={handleGuardar}
           >
-
             <Ionicons
               name="checkmark-circle-outline"
               size={22}
@@ -724,23 +726,16 @@ export default function AgregarMascotaScreen() {
             <Text style={styles.saveButtonText}>
               Guardar mascota
             </Text>
-
           </Pressable>
 
-
-          {/* =========================================
-              CANCELAR
-          ========================================= */}
-
+          {/* CANCELAR */}
           <Pressable
             style={styles.cancelButton}
-            onPress={() => router.replace('/mascotas')}
+            onPress={handleVolver}
           >
-
             <Text style={styles.cancelButtonText}>
               Cancelar
             </Text>
-
           </Pressable>
 
         </ScrollView>
@@ -750,13 +745,7 @@ export default function AgregarMascotaScreen() {
   );
 }
 
-
-/* =====================================================
-   ESTILOS
-===================================================== */
-
 const styles = StyleSheet.create({
-
   safeArea: {
     flex: 1,
     backgroundColor: '#F5F6F8',
@@ -776,33 +765,29 @@ const styles = StyleSheet.create({
     paddingBottom: 35,
   },
 
-
-  /* =========================================
-     HEADER
-  ========================================= */
+  /* HEADER */
 
   header: {
-    height: 64,
+    height: 100,
     paddingHorizontal: 18,
-
+    paddingTop: 28,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-
     backgroundColor: '#F5F6F8',
+    zIndex: 10,
+    elevation: 10,
   },
 
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#FFFFFF',
-
     alignItems: 'center',
     justifyContent: 'center',
-
-    elevation: 2,
+    zIndex: 20,
+    elevation: 6,
 
     shadowColor: '#000',
     shadowOffset: {
@@ -817,16 +802,15 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     fontSize: 20,
     fontWeight: '700',
+    marginTop: 13,
   },
 
   headerSpace: {
-    width: 42,
+    width: 50,
+    height: 50,
   },
 
-
-  /* =========================================
-     FOTO
-  ========================================= */
+  /* FOTO */
 
   photoSection: {
     alignItems: 'center',
@@ -838,13 +822,10 @@ const styles = StyleSheet.create({
     width: 105,
     height: 105,
     borderRadius: 53,
-
     backgroundColor: '#EDE9FE',
-
     borderWidth: 2,
     borderColor: colors.primary,
     borderStyle: 'dashed',
-
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -856,10 +837,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 
-
-  /* =========================================
-     CAMPOS
-  ========================================= */
+  /* CAMPOS */
 
   fieldContainer: {
     marginBottom: 19,
@@ -874,33 +852,23 @@ const styles = StyleSheet.create({
 
   input: {
     height: 50,
-
     backgroundColor: '#FFFFFF',
-
     borderWidth: 1,
     borderColor: '#E5E7EB',
-
     borderRadius: 12,
-
     paddingHorizontal: 15,
-
     color: '#1F2937',
     fontSize: 14,
   },
 
   inputWithIcon: {
     minHeight: 50,
-
     backgroundColor: '#FFFFFF',
-
     borderWidth: 1,
     borderColor: '#E5E7EB',
-
     borderRadius: 12,
-
     paddingLeft: 15,
     paddingRight: 14,
-
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -908,10 +876,8 @@ const styles = StyleSheet.create({
 
   inputSelect: {
     flex: 1,
-
     color: '#1F2937',
     fontSize: 14,
-
     paddingVertical: 0,
   },
 
@@ -925,23 +891,15 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
 
-
-  /* =========================================
-     OPCIONES
-  ========================================= */
+  /* OPCIONES */
 
   optionsContainer: {
     backgroundColor: '#FFFFFF',
-
     borderWidth: 1,
     borderColor: '#E5E7EB',
-
     borderRadius: 12,
-
     marginTop: 6,
-
     overflow: 'hidden',
-
     elevation: 3,
 
     shadowColor: '#000',
@@ -955,13 +913,10 @@ const styles = StyleSheet.create({
 
   option: {
     minHeight: 48,
-
     paddingHorizontal: 15,
-
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
@@ -976,10 +931,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-
-  /* =========================================
-     SEXO
-  ========================================= */
+  /* SEXO */
 
   sexContainer: {
     flexDirection: 'row',
@@ -989,14 +941,10 @@ const styles = StyleSheet.create({
   sexButton: {
     flex: 1,
     height: 50,
-
     backgroundColor: '#FFFFFF',
-
     borderWidth: 1,
     borderColor: '#E5E7EB',
-
     borderRadius: 12,
-
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1019,34 +967,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-
-  /* =========================================
-     PESO / EDAD
-  ========================================= */
+  /* PESO / EDAD */
 
   inputWithUnit: {
     height: 50,
-
     backgroundColor: '#FFFFFF',
-
     borderWidth: 1,
     borderColor: '#E5E7EB',
-
     borderRadius: 12,
-
     paddingLeft: 15,
     paddingRight: 15,
-
     flexDirection: 'row',
     alignItems: 'center',
   },
 
   inputWeight: {
     flex: 1,
-
     color: '#1F2937',
     fontSize: 14,
-
     paddingVertical: 0,
   },
 
@@ -1056,10 +994,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-
-  /* =========================================
-     DIRECCIÓN
-  ========================================= */
+  /* DIRECCIÓN */
 
   textArea: {
     height: 85,
@@ -1067,24 +1002,16 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
 
-
-  /* =========================================
-     GUARDAR
-  ========================================= */
+  /* GUARDAR */
 
   saveButton: {
     height: 52,
-
     backgroundColor: colors.primary,
-
     borderRadius: 13,
-
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-
     marginTop: 8,
-
     elevation: 2,
   },
 
@@ -1095,17 +1022,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-
-  /* =========================================
-     CANCELAR
-  ========================================= */
+  /* CANCELAR */
 
   cancelButton: {
     height: 48,
-
     alignItems: 'center',
     justifyContent: 'center',
-
     marginTop: 5,
   },
 
@@ -1114,5 +1036,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-
 });
