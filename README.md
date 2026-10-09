@@ -1,131 +1,206 @@
 # VetCare — versión integrada (citas/historial + login + ventas)
 
-Este paquete es el resultado de fusionar a mano tus dos ramas:
+Este proyecto integra los módulos de gestión veterinaria, autenticación y administración. Incluye una aplicación web, un backend API y una aplicación móvil.
 
-- **Base (versión estable):** `vetcare-citas-y-ficha-historial...zip` → módulos de
-  Mascotas, Historial Clínico, Vacunas, Citas y Horarios.
-- **Integrado desde `src b.zip` / `src f.zip`:** Login/registro (Firebase Auth),
-  Clientes, Productos, Inventario, Ventas, Reportes y Usuarios.
+- **Base (versión estable):** módulos de Mascotas, Historial Clínico, Vacunas, Citas y Horarios.
+- **Módulos integrados:** Login/registro con Firebase Authentication, Clientes, Productos, Inventario, Ventas, Reportes y Usuarios.
+- **Aplicación móvil:** desarrollada con React Native y Expo, conectada al backend.
 
-No fue un merge automático de Git: se reconstruyó archivo por archivo porque,
-como vimos, las dos ramas habían reescrito los mismos archivos troncales
-(`app.js`, `config/firebase.js`, el layout raíz, `Navbar`/`Sidebar`, `services/api.js`)
-con arquitecturas incompatibles.
+La integración del backend y frontend se realizó reconciliando los archivos que tenían arquitecturas incompatibles, incluyendo `app.js`, `config/firebase.js`, los layouts y `services/api.js`.
 
 ## Estructura
 
-```
-merged/
+```text
+vetcare-system/
 ├── backend/   (Express + Firebase Admin)
 │   └── src/
-│       ├── app.js              <- reconciliado: registra TODAS las rutas
-│       ├── config/firebase.js  <- reconciliado: exporta { db, auth } y default db
+│       ├── app.js
+│       ├── config/firebase.js
 │       ├── server.js
-│       ├── middlewares/auth.middleware.js
-│       ├── controllers|routes|services|validators/  (citas/historial + ventas/auth)
-│       └── .env.example
-└── frontend/  (Next.js App Router)
-    └── src/
-        ├── app/
-        │   ├── layout.js        <- layout raíz: solo <html>/<body> + AuthProvider
-        │   ├── page.js           <- "/" redirige a /dashboard
-        │   ├── (auth)/           <- login, register, forgot-password, reset-password (sin menú)
-        │   └── (app)/            <- todo lo demás, protegido y con Sidebar/Navbar
-        │       ├── layout.jsx    <- ProtectedRoute + Sidebar + Navbar
-        │       ├── dashboard, mascotas, historial, citas, vacunas   (ya existían, sin cambios)
-        │       └── clientes, productos, inventario, ventas, reportes, usuarios, profile  (integrados)
-        ├── context/AuthContext.jsx
-        ├── lib/firebase.js       (config del cliente Firebase)
-        ├── components/auth/ProtectedRoute.jsx
-        └── services/api.js       <- reconciliado: URL única + adjunta el token de Firebase
+│       ├── middlewares/
+│       ├── controllers/
+│       ├── routes/
+│       ├── services/
+│       └── validators/
+├── frontend/  (Next.js App Router)
+│   └── src/
+│       ├── app/
+│       ├── context/
+│       ├── lib/
+│       ├── components/
+│       └── services/
+├── mobile/    (React Native + Expo)
+│   └── src/
+│       ├── app/
+│       └── config/
+└── README.md
 ```
 
-## Qué se resolvió del conflicto original
+## Qué se resolvió en la integración
 
-1. **`config/firebase.js`** ahora exporta `{ db, auth }` (con nombre) y `db` (default),
-   y restaura el `getApps().length === 0` para no inicializar Firebase dos veces.
-   Antes, la versión de la rama citas/historial había eliminado `auth`, lo que
-   habría roto el login en cuanto se integrara.
-2. **`app.js`** registra las cinco rutas de citas/historial **y** las siete de
-   auth/ventas/clientes/usuarios. Como ahora sí existe login real, se protegieron
-   con `verifyToken` las rutas que antes quedaban abiertas (mascotas, historiales,
-   vacunas, citas, horarios, productos, inventario, ventas, reportes).
-3. **`services/api.js`** del frontend es uno solo (antes había dos, apuntando a
-   puertos distintos) y ahora sí adjunta el token de Firebase (`Authorization: Bearer …`)
-   en cada petición vía un interceptor de axios — antes NINGUNA versión lo hacía,
-   así que en cuanto una ruta exigía `verifyToken` el frontend recibía 401 sin
-   remedio.
-4. Se eliminó la duplicación **`layout.js` + `layout.jsx`** y **`page.js` + `page.jsx`**
-   en la carpeta `app/` (Next.js no permite dos archivos de ruta para el mismo
-   segmento). Ahora el layout raíz (`app/layout.js`) solo monta `AuthProvider`,
-   y el menú (`Sidebar`/`Navbar`) vive en `app/(app)/layout.jsx`, protegido por
-   `ProtectedRoute`. Las páginas de login/registro quedan en `app/(auth)/` sin
-   ese menú.
-5. **Ningún import usa el alias `@/`** (que dependía de un `jsconfig.json` que no
-   venía en ninguno de los dos zips); todo quedó en rutas relativas explícitas,
-   y de todas formas se incluyó un `jsconfig.json` como respaldo.
-6. Se normalizaron **todos los saltos de línea a LF** (`.gitattributes` incluido)
-   para que un futuro `git diff`/merge no vuelva a mostrar cada línea como
-   "cambiada" solo por CRLF vs LF.
-7. Se agregaron `services/clientes.service.js` y `services/users.service.js`
-   nuevos, y se reescribieron `clientes/page.jsx`, `usuarios/page.jsx` y
-   `profile/page.jsx` para usarlos (antes llamaban con `fetch()` a una URL
-   fija `http://localhost:5000`, sin variable de entorno).
+1. `config/firebase.js` exporta los servicios de Firebase Admin necesarios para acceder a Firestore y verificar la autenticación.
+2. `app.js` registra las rutas de los módulos clínicos, autenticación y administración.
+3. El frontend utiliza un servicio API que adjunta el token de Firebase en las peticiones protegidas.
+4. Se organizaron los layouts y las rutas de autenticación y aplicación para evitar duplicaciones en Next.js.
+5. Se agregaron servicios para clientes y usuarios y se ajustaron páginas administrativas.
+6. Se mantuvo una estructura compartida de backend para que el frontend web y la aplicación móvil consuman la misma API.
 
-## Verificación que sí se hizo
+## Verificación
 
-- Los 112 archivos `.js`/`.jsx` del backend y del frontend pasaron un chequeo
-  de sintaxis (parser de esbuild, incluyendo JSX) sin errores.
-- Se verificó, archivo por archivo, que **todos los imports relativos**
-  (`../../...`) resuelven a un archivo real dentro del proyecto — no quedó
-  ninguna ruta rota por el cambio de profundidad de carpetas al introducir
-  los grupos de rutas `(auth)` y `(app)`.
-- Se verificó que cada endpoint que llaman los `services/*.service.js` del
-  frontend (`/mascotas`, `/historiales`, `/vacunas`, `/citas`, `/horarios`,
-  `/productos`, `/inventario`, `/ventas`, `/reportes`, `/clientes`, `/users`)
-  tiene su contraparte montada en `backend/src/app.js`.
+- Se realizó una comprobación de sintaxis de los archivos JavaScript y JSX durante la integración inicial.
+- Se revisaron los imports relativos y la correspondencia de los endpoints del frontend con las rutas del backend.
+- Se comprobó localmente que el backend inicia y responde en el endpoint raíz.
+- Se verificaron desde el emulador Android el login móvil, la consulta y registro de mascotas, los historiales médicos, las vacunas y el flujo de citas.
 
-Lo que **no** se pudo verificar aquí (requiere tu entorno): no se corrió
-`npm install` ni `next build` real, porque no había `package.json` en los
-zips originales ni credenciales de Firebase. Antes de darlo por bueno,
-corre los pasos de abajo.
+Las pruebas deben repetirse en el entorno de cada integrante después de configurar las dependencias, variables de entorno y credenciales autorizadas.
 
-## Pasos para levantarlo
+## Pasos para levantar el proyecto
 
-**Backend**
+### Backend
+
 ```bash
 cd backend
 npm install
-cp .env.example .env
-# coloca tu credencial real en backend/credentials/firebase-key.json
+```
+
+Configura el archivo `.env` con las variables requeridas por el backend. Si existe `backend/.env.example`, úsalo como referencia.
+
+Configura las credenciales de Firebase Admin siguiendo el procedimiento autorizado del equipo. No publiques claves privadas ni archivos de credenciales.
+
+Inicia el servidor:
+
+```bash
 npm run dev
 ```
 
-**Frontend**
+El backend utiliza el puerto `5000` por defecto, salvo que la configuración indique otro.
+
+Para comprobar que responde, abre otra terminal y ejecuta:
+
+```bash
+curl http://localhost:5000/
+```
+
+La respuesta esperada es similar a:
+
+```json
+{
+  "mensaje": "VetCare API funcionando"
+}
+```
+
+### Frontend
+
 ```bash
 cd frontend
 npm install
-cp .env.local.example .env.local
+```
+
+Configura las variables de entorno en `.env.local`, utilizando `frontend/.env.local.example` si está disponible.
+
+Inicia la aplicación web:
+
+```bash
 npm run dev
 ```
 
-`frontend/src/lib/firebase.js` trae el config del proyecto `vetcare-35909`
-tal como estaba en tu rama de login — revisa que siga siendo el proyecto de
-Firebase correcto antes de usarlo en producción.
+La aplicación normalmente estará disponible en `http://localhost:3000`.
 
-## Pendientes que quedan a tu criterio (no bloquean que funcione)
+Revisa la configuración de Firebase en `frontend/src/lib/firebase.js` y confirma que corresponda al proyecto autorizado.
 
-- **Diseño no unificado del todo:** Dashboard/Mascotas/Historial/Citas/Vacunas
-  usan el tema azul con `react-icons` (tu versión "estable"); Clientes,
-  Productos, Inventario, Ventas, Reportes y Usuarios usan el tema
-  índigo/zinc con `lucide-react` (tu versión de ventas). Ambos funcionan y
-  están conectados al mismo backend, pero visualmente no son iguales todavía.
-  Unificarlos es trabajo de diseño, no de "arreglar el merge", así que se
-  dejó para que lo definas tú.
-- La página de registro (`app/(auth)/register/page.jsx`) referencia una
-  imagen decorativa `/images/pets.jpg` que no venía en ningún zip. No rompe
-  el build, pero no se va a ver: agrega esa imagen en `frontend/public/images/`
-  o quita ese bloque `<Image .../>`.
-- El registro de nuevas cuentas (`/register`) crea el usuario en Firebase Auth
-  desde el cliente; confirma que ese es el flujo que quieres (vs. que solo un
-  Administrador cree usuarios desde `/usuarios`, que también existe).
+### Mobile (React Native + Expo)
+
+La aplicación móvil permite iniciar sesión, consultar y registrar mascotas, revisar historiales clínicos y vacunas, y gestionar citas.
+
+Instala las dependencias:
+
+```bash
+cd mobile
+npm install
+```
+
+Configura las variables de Firebase en `mobile/.env`. Confirma los nombres exactos de las variables con los archivos de configuración del proyecto. No subas este archivo a GitHub.
+
+Revisa la URL del backend en:
+
+```text
+mobile/src/config/api.js
+```
+
+Para utilizar el emulador Android de Android Studio, la URL debe apuntar al equipo anfitrión:
+
+```javascript
+export const API_URL = 'http://10.0.2.2:5000';
+```
+
+Inicia Expo:
+
+```bash
+npx expo start
+```
+
+Mantén el backend en ejecución mientras utilizas la aplicación móvil.
+
+## Ejecución en Android Studio
+
+La aplicación móvil se probó utilizando el emulador **Google Pixel 8** de Android Studio. Esto se refiere al dispositivo virtual, no a una prueba en un teléfono físico.
+
+1. Abre Android Studio.
+2. Accede a `Tools > Device Manager`.
+3. Inicia el emulador virtual Google Pixel 8.
+4. Inicia el backend en una terminal y confirma que escucha en el puerto `5000`.
+5. Abre otra terminal, entra en `mobile` y ejecuta `npx expo start`.
+6. Presiona `a` en la terminal de Expo para abrir la aplicación en el emulador.
+
+La dirección `10.0.2.2` permite que el emulador Android se comunique con el backend que se ejecuta en la computadora anfitriona.
+
+Si se utiliza un dispositivo Android físico, configura la dirección IP local de la computadora que ejecuta el backend y asegúrate de que ambos dispositivos tengan conectividad de red.
+
+## Pendientes conocidos
+
+- El diseño visual de algunos módulos web todavía utiliza estilos diferentes.
+- La pantalla de registro hace referencia a la imagen decorativa `/images/pets.jpg`; confirma que exista en `frontend/public/images/` o ajusta la página.
+- El flujo de registro de cuentas debe mantenerse alineado con las reglas de creación de usuarios y roles del equipo.
+
+## Seguridad
+
+- No subir archivos `.env`, `.env.local` ni claves privadas de Firebase.
+- No publicar `backend/credentials/firebase-key.json`.
+- No compartir contraseñas ni credenciales personales.
+- Mantener correctamente configuradas las reglas de acceso de Firestore y los permisos del backend.
+- No utilizar reglas de Firestore en modo de prueba para producción.
+
+## Flujo de trabajo con Git
+
+Actualizar la rama principal:
+
+```bash
+git switch main
+git pull origin main
+```
+
+Crear una rama para los cambios propios:
+
+```bash
+git switch -c feature/nombre-de-la-funcionalidad
+```
+
+Publicar la rama:
+
+```bash
+git push -u origin feature/nombre-de-la-funcionalidad
+```
+
+Después, abrir un Pull Request hacia la rama de integración acordada por el equipo. Evitar subir cambios directamente a `main` sin revisión.
+
+## Repositorio
+
+https://github.com/EdwinFrancoGH/vetcare-system
+
+La rama `main` contiene los cambios integrados mediante el Pull Request #10.
+
+---
+
+**VetCare — Centro Veterinario La Mascota**
+
+Proyecto académico de desarrollo de software multiplataforma.
