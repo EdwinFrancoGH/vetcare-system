@@ -9,6 +9,8 @@ import {
 
 import { validarVacuna } from "../validators/vacuna.validator.js";
 
+import { obtenerPorId as obtenerMascotaPorId } from "../services/mascotas.service.js";
+
 // Obtener todas las vacunas
 export const obtenerVacunas = async (req, res) => {
     try {
@@ -38,6 +40,25 @@ export const obtenerVacunaPorId = async (req, res) => {
             });
         }
 
+        // Si es Cliente, verificar que la mascota asociada le pertenezca
+        if (req.userRole === "Cliente") {
+            const mascota = await obtenerMascotaPorId(vacuna.mascotaId);
+
+            if (!mascota) {
+                return res.status(404).json({
+                    ok: false,
+                    mensaje: "Mascota no encontrada"
+                });
+            }
+
+            if (mascota.propietarioUid !== req.user.uid) {
+                return res.status(403).json({
+                    ok: false,
+                    mensaje: "No tienes permiso para consultar esta vacuna"
+                });
+            }
+        }
+
         res.json({
             ok: true,
             data: vacuna
@@ -54,13 +75,37 @@ export const obtenerVacunaPorId = async (req, res) => {
 // Obtener vacunas de una mascota específica
 export const obtenerVacunasPorMascota = async (req, res) => {
     try {
-        const vacunas = await obtenerPorMascota(req.params.mascotaId);
+        const { mascotaId } = req.params;
+
+        // Si es Cliente, verificar que la mascota le pertenezca
+        if (req.userRole === "Cliente") {
+            const mascota = await obtenerMascotaPorId(mascotaId);
+
+            if (!mascota) {
+                return res.status(404).json({
+                    ok: false,
+                    mensaje: "Mascota no encontrada"
+                });
+            }
+
+            if (mascota.propietarioUid !== req.user.uid) {
+                return res.status(403).json({
+                    ok: false,
+                    mensaje: "No tienes permiso para consultar las vacunas de esta mascota"
+                });
+            }
+        }
+
+        const vacunas = await obtenerPorMascota(mascotaId);
 
         res.json({
             ok: true,
             data: vacunas
         });
+
     } catch (error) {
+        console.error("Error obteniendo vacunas por mascota:", error);
+
         res.status(500).json({
             ok: false,
             mensaje: error.message
@@ -71,6 +116,16 @@ export const obtenerVacunasPorMascota = async (req, res) => {
 // Crear vacuna
 export const crearVacuna = async (req, res) => {
     try {
+
+        // Los Clientes solo pueden consultar información.
+        // La creación de vacunas corresponde al personal clínico.
+        if (req.userRole === "Cliente") {
+            return res.status(403).json({
+                ok: false,
+                mensaje: "No tienes permiso para crear vacunas"
+            });
+        }
+
         const errorValidacion = validarVacuna(req.body);
 
         if (errorValidacion) {
@@ -99,6 +154,15 @@ export const crearVacuna = async (req, res) => {
 // Actualizar vacuna
 export const actualizarVacuna = async (req, res) => {
     try {
+
+        // Los Clientes no pueden modificar vacunas.
+        if (req.userRole === "Cliente") {
+            return res.status(403).json({
+                ok: false,
+                mensaje: "No tienes permiso para actualizar vacunas"
+            });
+        }
+
         const errorValidacion = validarVacuna(req.body);
 
         if (errorValidacion) {
@@ -127,6 +191,15 @@ export const actualizarVacuna = async (req, res) => {
 // Eliminar vacuna
 export const eliminarVacuna = async (req, res) => {
     try {
+
+        // Los Clientes no pueden eliminar vacunas.
+        if (req.userRole === "Cliente") {
+            return res.status(403).json({
+                ok: false,
+                mensaje: "No tienes permiso para eliminar vacunas"
+            });
+        }
+
         await eliminar(req.params.id);
 
         res.json({

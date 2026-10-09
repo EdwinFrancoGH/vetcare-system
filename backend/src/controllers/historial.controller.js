@@ -9,6 +9,8 @@ import {
 
 import { validarHistorial } from "../validators/historial.validator.js";
 
+import { obtenerPorId as obtenerMascotaPorId } from "../services/mascotas.service.js";
+
 // Obtener todos los historiales
 export const obtenerHistoriales = async (req, res) => {
     try {
@@ -45,6 +47,26 @@ export const obtenerHistorialPorId = async (req, res) => {
 
         }
 
+        // Si es Cliente, verificar que la mascota asociada le pertenezca
+        if (req.userRole === "Cliente") {
+
+            const mascota = await obtenerMascotaPorId(historial.mascotaId);
+
+            if (!mascota) {
+                return res.status(404).json({
+                    ok: false,
+                    mensaje: "Mascota no encontrada"
+                });
+            }
+
+            if (mascota.propietarioUid !== req.user.uid) {
+                return res.status(403).json({
+                    ok: false,
+                    mensaje: "No tienes permiso para consultar este historial"
+                });
+            }
+        }
+
         res.json({
             ok: true,
             historial
@@ -66,7 +88,29 @@ export const obtenerHistorialPorMascota = async (req, res) => {
 
     try {
 
-        const historiales = await obtenerPorMascota(req.params.mascotaId);
+        const { mascotaId } = req.params;
+
+        // Si es Cliente, verificar que la mascota le pertenezca
+        if (req.userRole === "Cliente") {
+
+            const mascota = await obtenerMascotaPorId(mascotaId);
+
+            if (!mascota) {
+                return res.status(404).json({
+                    ok: false,
+                    mensaje: "Mascota no encontrada"
+                });
+            }
+
+            if (mascota.propietarioUid !== req.user.uid) {
+                return res.status(403).json({
+                    ok: false,
+                    mensaje: "No tienes permiso para consultar el historial de esta mascota"
+                });
+            }
+        }
+
+        const historiales = await obtenerPorMascota(mascotaId);
 
         res.json({
             ok: true,
@@ -74,6 +118,8 @@ export const obtenerHistorialPorMascota = async (req, res) => {
         });
 
     } catch (error) {
+
+        console.error("Error obteniendo historial por mascota:", error);
 
         res.status(500).json({
             ok: false,
@@ -88,6 +134,15 @@ export const obtenerHistorialPorMascota = async (req, res) => {
 export const crearHistorial = async (req, res) => {
 
     try {
+
+        // Los Clientes solo pueden consultar información.
+        // La creación de historiales corresponde al personal clínico.
+        if (req.userRole === "Cliente") {
+            return res.status(403).json({
+                ok: false,
+                mensaje: "No tienes permiso para crear historiales médicos"
+            });
+        }
 
         const errorValidacion = validarHistorial(req.body);
 
@@ -120,6 +175,14 @@ export const crearHistorial = async (req, res) => {
 export const actualizarHistorial = async (req, res) => {
 
     try {
+
+        // Los Clientes no pueden modificar historiales médicos.
+        if (req.userRole === "Cliente") {
+            return res.status(403).json({
+                ok: false,
+                mensaje: "No tienes permiso para actualizar historiales médicos"
+            });
+        }
 
         const errorValidacion = validarHistorial(req.body);
 
@@ -164,6 +227,14 @@ export const actualizarHistorial = async (req, res) => {
 export const eliminarHistorial = async (req, res) => {
 
     try {
+
+        // Los Clientes no pueden eliminar historiales médicos.
+        if (req.userRole === "Cliente") {
+            return res.status(403).json({
+                ok: false,
+                mensaje: "No tienes permiso para eliminar historiales médicos"
+            });
+        }
 
         const eliminado = await eliminar(req.params.id);
 
