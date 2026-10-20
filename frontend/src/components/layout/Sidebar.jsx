@@ -51,13 +51,13 @@ export default function Sidebar({ abierto = false, onCerrar }) {
             {abierto && (
                 <div
                     onClick={onCerrar}
-                    className="fixed inset-0 z-40 bg-black/50 md:hidden"
+                    className="fixed inset-0 z-40 bg-black/50 md:hidden print:hidden"
                     aria-hidden="true"
                 />
             )}
 
             <aside
-                className={`fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white min-h-screen flex flex-col transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:z-auto ${
+                className={`fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white min-h-screen flex flex-col transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:z-auto print:hidden ${
                     abierto ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
