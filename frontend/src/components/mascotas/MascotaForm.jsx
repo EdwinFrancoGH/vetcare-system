@@ -1,48 +1,38 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { crearMascota, actualizarMascota } from "../../services/mascotas.service";
-import { useAuth } from "../../context/AuthContext";
-import { hoyISO } from "../../utils/citas";
+import { FaPaw, FaHeartbeat, FaUser, FaCheckCircle } from "react-icons/fa";
 import Swal from "sweetalert2";
 
-const REGEX_LETRAS = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s'-]*$/;
-const REGEX_TELEFONO_INPUT = /^\+?[\d\s-]*$/;
-const REGEX_TELEFONO_VALIDO = /^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/;
+import { crearMascota, actualizarMascota } from "../../services/mascotas.service";
+import { useAuth } from "../../context/AuthContext";
+import { hoyISO, calcularEdadYMeses } from "../../utils/citas";
+import { ESPECIE_IDS, obtenerEspecie } from "../../utils/especies";
+import {
+    REGEX_LETRAS,
+    REGEX_TELEFONO_INPUT,
+    validarFormularioMascota,
+} from "../../utils/validacionesMascota";
 
-function calcularEdadYMeses(fechaNacISO, hoyFecha = hoyISO()) {
-    if (!fechaNacISO || typeof fechaNacISO !== "string") {
-        return { edad: "", textoMeses: "" };
-    }
-    const [anioNac, mesNac, diaNac] = fechaNacISO.slice(0, 10).split("-").map(Number);
-    const [anioHoy, mesHoy, diaHoy] = hoyFecha.slice(0, 10).split("-").map(Number);
-    if (!anioNac || !mesNac || !diaNac || !anioHoy || !mesHoy || !diaHoy) {
-        return { edad: "", textoMeses: "" };
-    }
+import ModalFormulario from "./formulario/ModalFormulario";
+import CampoFormulario from "./formulario/CampoFormulario";
+import SelectorEspecie from "./formulario/SelectorEspecie";
+import SelectorSexo from "./formulario/SelectorSexo";
 
-    let anios = anioHoy - anioNac;
-    let meses = mesHoy - mesNac;
-    let dias = diaHoy - diaNac;
-
-    if (dias < 0) {
-        meses -= 1;
-    }
-    if (meses < 0) {
-        anios -= 1;
-        meses += 12;
-    }
-
-    if (anios < 0) {
-        return { edad: 0, textoMeses: "(0 meses)" };
-    }
-
-    if (anios === 0) {
-        const totalMeses = Math.max(0, meses);
-        return { edad: 0, textoMeses: `(${totalMeses} ${totalMeses === 1 ? "mes" : "meses"})` };
-    }
-
-    return { edad: anios, textoMeses: "" };
-}
+const FORMULARIO_INICIAL = {
+    nombre: "",
+    especie: "",
+    raza: "",
+    sexo: "",
+    edad: "",
+    peso: "",
+    color: "",
+    fechaNacimiento: "",
+    propietario: "",
+    telefono: "",
+    direccion: "",
+    estado: "Activo",
+};
 
 export default function MascotaForm({ mascota, onClose, onSuccess }) {
     const { userRole, userData } = useAuth();
@@ -50,185 +40,122 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
     const hoy = hoyISO();
 
     const formRef = useRef(null);
+    const initialDataRef = useRef(null);
 
-    const [formData, setFormData] = useState({
-        nombre: "",
-        especie: "",
-        raza: "",
-        sexo: "",
-        edad: "",
-        peso: "",
-        color: "",
-        fechaNacimiento: "",
-        propietario: "",
-        telefono: "",
-        direccion: "",
-        estado: "Activo",
-    });
-
-    const [textoMeses, setTextoMeses] = useState("");
+    const [formData, setFormData] = useState(FORMULARIO_INICIAL);
     const [guardando, setGuardando] = useState(false);
+    const [errores, setErrores] = useState({});
+    const [especieOtroTexto, setEspecieOtroTexto] = useState("");
 
     useEffect(() => {
-        if (mascota) {
-            const { edad, textoMeses: tm } = calcularEdadYMeses(mascota.fechaNacimiento, hoy);
-            setFormData({
-                nombre: String(mascota.nombre ?? ""),
-                especie: String(mascota.especie ?? ""),
-                raza: String(mascota.raza ?? ""),
-                sexo: String(mascota.sexo ?? ""),
-                edad: edad !== "" ? edad : (mascota.edad ?? ""),
-                peso: mascota.peso !== undefined && mascota.peso !== null ? String(mascota.peso) : "",
-                color: String(mascota.color ?? ""),
-                fechaNacimiento: String(mascota.fechaNacimiento ?? ""),
-                propietario: String(mascota.propietario ?? ""),
-                telefono: String(mascota.telefono ?? ""),
-                direccion: String(mascota.direccion ?? ""),
-                estado: String(mascota.estado ?? "Activo"),
-            });
-            setTextoMeses(tm);
-        } else {
-            // Reiniciar a valores vacíos (con precarga de propietario y teléfono para el Cliente)
-            setFormData({
-                nombre: "",
-                especie: "",
-                raza: "",
-                sexo: "",
-                edad: "",
-                peso: "",
-                color: "",
-                fechaNacimiento: "",
-                propietario: esCliente ? String(userData?.name ?? "") : "",
-                telefono: esCliente ? String(userData?.phone ?? userData?.telefono ?? "") : "",
-                direccion: "",
-                estado: "Activo",
-            });
-            setTextoMeses("");
-        }
-
-        // Scroll suave hacia el formulario al abrir (crear o editar)
-        setTimeout(() => {
-            formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 50);
+        const ec = mascota ? calcularEdadYMeses(mascota.fechaNacimiento, hoy).edad : "";
+        const init = mascota
+            ? {
+                  nombre: String(mascota.nombre ?? ""),
+                  especie: String(mascota.especie ?? ""),
+                  raza: String(mascota.raza ?? ""),
+                  sexo: String(mascota.sexo ?? ""),
+                  edad: ec !== "" ? ec : (mascota.edad ?? ""),
+                  peso: mascota.peso != null ? String(mascota.peso) : "",
+                  color: String(mascota.color ?? ""),
+                  fechaNacimiento: String(mascota.fechaNacimiento ?? ""),
+                  propietario: String(mascota.propietario ?? ""),
+                  telefono: String(mascota.telefono ?? ""),
+                  direccion: String(mascota.direccion ?? ""),
+                  estado: String(mascota.estado ?? "Activo"),
+              }
+            : {
+                  ...FORMULARIO_INICIAL,
+                  propietario: esCliente ? String(userData?.name ?? "") : "",
+                  telefono: esCliente ? String(userData?.phone ?? userData?.telefono ?? "") : "",
+              };
+        setFormData(init);
+        initialDataRef.current = init;
+        setErrores({});
+        setEspecieOtroTexto(
+            mascota?.especie && !ESPECIE_IDS.includes(mascota.especie) && mascota.especie !== "Otro"
+                ? String(mascota.especie)
+                : "",
+        );
     }, [mascota, esCliente, userData, hoy]);
+
+    const esModificado = () => {
+        if (!initialDataRef.current) return false;
+        return Object.keys(initialDataRef.current).some(
+            (k) =>
+                String(formData[k] ?? "").trim() !== String(initialDataRef.current[k] ?? "").trim(),
+        );
+    };
+
+    const intentarCerrar = async () => {
+        if (guardando) return;
+        if (esModificado()) {
+            const res = await Swal.fire({
+                title: "¿Descartar los cambios?",
+                text: "Hay información modificada que no se ha guardado. ¿Deseas salir?",
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonColor: "#dc2626",
+                cancelButtonColor: "#6b7280",
+                confirmButtonText: "Sí, descartar",
+                cancelButtonText: "Continuar editando",
+            });
+            if (res.isConfirmed) onClose();
+        } else {
+            onClose();
+        }
+    };
+
+    const limpiarError = (campo) => {
+        setErrores((prev) => {
+            if (!prev[campo]) return prev;
+            const nuevo = { ...prev };
+            delete nuevo[campo];
+            return nuevo;
+        });
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
+        limpiarError(name);
+        if (
+            (name === "nombre" || name === "color" || name === "propietario") &&
+            !REGEX_LETRAS.test(value)
+        )
+            return;
+        if (name === "telefono" && !REGEX_TELEFONO_INPUT.test(value)) return;
 
-        // 1.1 Letras, tildes, ñ, ü, espacios, guion y apóstrofo
-        if (["nombre", "raza", "color", "propietario"].includes(name)) {
-            if (!REGEX_LETRAS.test(value)) {
-                return;
-            }
-        }
-
-        // 1.1 Teléfono: solo dígitos, espacio, guion y "+" al inicio
-        if (name === "telefono") {
-            if (!REGEX_TELEFONO_INPUT.test(value)) {
-                return;
-            }
-        }
-
-        // 1.1 Peso: sin -, +, e, E
-        if (name === "peso") {
-            if (value.includes("-") || value.includes("+") || value.toLowerCase().includes("e")) {
-                return;
-            }
-        }
-
-        // 1.2 Edad calculada automáticamente con fechaNacimiento
         if (name === "fechaNacimiento") {
-            const { edad, textoMeses: tm } = calcularEdadYMeses(value, hoy);
-            setFormData((prev) => ({
-                ...prev,
-                fechaNacimiento: value,
-                edad: edad,
-            }));
-            setTextoMeses(tm);
+            const { edad } = calcularEdadYMeses(value, hoy);
+            setFormData((prev) => ({ ...prev, fechaNacimiento: value, edad }));
             return;
         }
-
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
-    };
-
-    const handlePesoKeyDown = (e) => {
-        if (["-", "+", "e", "E"].includes(e.key)) {
-            e.preventDefault();
-        }
+        setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        const nombre = String(formData.nombre ?? "").trim();
-        const especie = String(formData.especie ?? "").trim();
-        const raza = String(formData.raza ?? "").trim();
-        const sexo = String(formData.sexo ?? "").trim();
-        const color = String(formData.color ?? "").trim();
-        const fechaNacimiento = String(formData.fechaNacimiento ?? "").trim();
-        const propietario = String(formData.propietario ?? "").trim();
-        const telefono = String(formData.telefono ?? "").trim();
-        const direccion = String(formData.direccion ?? "").trim();
-        const pesoStr = String(formData.peso ?? "").trim();
-        const pesoNum = Number(pesoStr);
-
-        if (!nombre) {
-            Swal.fire("Campo requerido", "El nombre de la mascota es obligatorio.", "warning");
-            return;
-        }
-        if (!especie) {
-            Swal.fire("Campo requerido", "Debe seleccionar la especie de la mascota.", "warning");
-            return;
-        }
-        if (!raza) {
-            Swal.fire("Campo requerido", "La raza de la mascota es obligatoria.", "warning");
-            return;
-        }
-        if (!sexo) {
-            Swal.fire("Campo requerido", "Debe seleccionar el sexo de la mascota.", "warning");
-            return;
-        }
-        if (!color) {
-            Swal.fire("Campo requerido", "El color de la mascota es obligatorio.", "warning");
-            return;
-        }
-        if (!fechaNacimiento) {
-            Swal.fire("Campo requerido", "La fecha de nacimiento es obligatoria.", "warning");
-            return;
-        }
-        if (pesoStr === "" || pesoNum <= 0 || isNaN(pesoNum)) {
-            Swal.fire("Campo inválido", "El peso debe ser mayor a 0 kg.", "warning");
-            return;
-        }
-        if (!propietario) {
-            Swal.fire("Campo requerido", "El nombre del propietario es obligatorio.", "warning");
-            return;
-        }
-        if (!telefono) {
-            Swal.fire("Campo requerido", "El teléfono de contacto es obligatorio.", "warning");
-            return;
-        }
-        if (!REGEX_TELEFONO_VALIDO.test(telefono)) {
-            Swal.fire("Teléfono inválido", "Ingrese un número de teléfono válido de El Salvador (8 dígitos, ej: 7123-4567 o +503 7123-4567).", "warning");
-            return;
-        }
-        if (!direccion) {
-            Swal.fire("Campo requerido", "La dirección es obligatoria.", "warning");
+        const validacion = validarFormularioMascota(formData);
+        if (!validacion.esValido) {
+            setErrores(validacion.errores);
+            if (validacion.primerCampo) {
+                const el = formRef.current?.querySelector(`[name="${validacion.primerCampo}"]`);
+                if (el) {
+                    el.focus?.();
+                    el.scrollIntoView?.({ behavior: "smooth", block: "center" });
+                }
+                Swal.fire(validacion.tituloSwal, validacion.primerMensaje, "warning");
+            }
             return;
         }
 
         try {
             setGuardando(true);
-
             const payload = {
                 ...formData,
                 peso: Number(formData.peso),
                 edad: Number(formData.edad),
             };
-
             if (mascota) {
                 await actualizarMascota(mascota.id, payload);
                 await Swal.fire("¡Éxito!", "Mascota actualizada correctamente.", "success");
@@ -236,214 +163,258 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
                 await crearMascota(payload);
                 await Swal.fire("¡Éxito!", "Mascota registrada correctamente.", "success");
             }
-
             await onSuccess();
             onClose();
-        } catch (error) {
-            console.error("Error al guardar mascota:", error);
-            Swal.fire("Error", error.response?.data?.message || "Ocurrió un error al guardar la mascota.", "error");
+        } catch (err) {
+            console.error("Error al guardar mascota:", err);
+            Swal.fire(
+                "Error",
+                err.response?.data?.message || "Ocurrió un error al guardar la mascota.",
+                "error",
+            );
         } finally {
             setGuardando(false);
         }
     };
 
+    const configEspecie = obtenerEspecie(formData.especie);
+    const esOtroSeleccionado =
+        formData.especie === "Otro" ||
+        (Boolean(formData.especie) && !ESPECIE_IDS.includes(formData.especie));
+
+    const handleSeleccionarEspecie = (id) => {
+        limpiarError("especie");
+        setFormData((prev) => ({
+            ...prev,
+            especie: id === "Otro" ? especieOtroTexto.trim() || "Otro" : id,
+        }));
+    };
+
+    const handleCambioOtro = (e) => {
+        if (!REGEX_LETRAS.test(e.target.value)) return;
+        setEspecieOtroTexto(e.target.value);
+        setFormData((prev) => ({ ...prev, especie: e.target.value.trim() || "Otro" }));
+        limpiarError("especie");
+    };
+
+    const inicial = formData.nombre ? formData.nombre.trim().charAt(0).toUpperCase() : "";
+    const subtituloEnVivo = `${formData.especie || "Especie"} · ${formData.raza || "Raza"}`;
+
+    let chipEdad = null;
+    if (formData.fechaNacimiento) {
+        const { edad, textoMeses: tm } = calcularEdadYMeses(formData.fechaNacimiento, hoy);
+        chipEdad =
+            edad === 0
+                ? `Tiene ${(tm || "").replace(/[()]/g, "").trim() || "0 meses"}`
+                : edad !== ""
+                  ? `Tiene ${edad} ${edad === 1 ? "año" : "años"}`
+                  : null;
+    }
+
     return (
-        <form
-            ref={formRef}
-            onSubmit={handleSubmit}
-            className="bg-white rounded-xl shadow-lg p-6 mb-6"
+        <ModalFormulario
+            titulo={
+                mascota
+                    ? `Editar ${formData.nombre || mascota.nombre || "mascota"}`
+                    : "Nueva mascota"
+            }
+            subtitulo={subtituloEnVivo}
+            inicial={inicial}
+            avatarBg={configEspecie.bg}
+            IconoEspecie={configEspecie.icon}
+            onCerrar={intentarCerrar}
+            formRef={formRef}
         >
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                {mascota ? "Editar Mascota" : "Nueva Mascota"}
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-600">
-                <div>
-                    <label className="block mb-1 font-medium">Nombre</label>
-                    <input
-                        type="text"
-                        name="nombre"
-                        value={formData.nombre}
-                        onChange={handleChange}
-                        className="w-full border rounded-lg px-3 py-2"
-                        placeholder="Ej: Max"
-                    />
-                </div>
-
-                <div>
-                    <label className="block mb-1 font-medium">Especie</label>
-                    <select
-                        name="especie"
-                        value={formData.especie}
-                        onChange={handleChange}
-                        className="w-full border rounded-lg px-3 py-2"
-                    >
-                        <option value="">Seleccione</option>
-                        <option value="Perro">Perro</option>
-                        <option value="Gato">Gato</option>
-                        <option value="Ave">Ave</option>
-                        <option value="Conejo">Conejo</option>
-                        <option value="Otro">Otro</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block mb-1 font-medium">Raza</label>
-                    <input
-                        type="text"
-                        name="raza"
-                        value={formData.raza}
-                        onChange={handleChange}
-                        className="w-full border rounded-lg px-3 py-2"
-                        placeholder="Ej: Golden Retriever"
-                    />
-                </div>
-
-                <div>
-                    <label className="block mb-1 font-medium">Sexo</label>
-                    <select
-                        name="sexo"
-                        value={formData.sexo}
-                        onChange={handleChange}
-                        className="w-full border rounded-lg px-3 py-2"
-                    >
-                        <option value="">Seleccione</option>
-                        <option value="Macho">Macho</option>
-                        <option value="Hembra">Hembra</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block mb-1 font-medium">Color</label>
-                    <input
-                        type="text"
-                        name="color"
-                        value={formData.color}
-                        onChange={handleChange}
-                        className="w-full border rounded-lg px-3 py-2"
-                        placeholder="Ej: Dorado"
-                    />
-                </div>
-
-                <div>
-                    <label className="block mb-1 font-medium">Fecha de Nacimiento</label>
-                    <input
-                        type="date"
-                        name="fechaNacimiento"
-                        value={formData.fechaNacimiento}
-                        onChange={handleChange}
-                        max={hoy}
-                        className="w-full border rounded-lg px-3 py-2"
-                    />
-                </div>
-
-                <div>
-                    <label className="block mb-1 font-medium">Edad (años)</label>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="number"
-                            name="edad"
-                            value={formData.edad}
-                            readOnly
-                            placeholder="0"
-                            className="w-full border rounded-lg px-3 py-2 bg-gray-100 text-gray-700 cursor-not-allowed"
-                        />
-                        {textoMeses && (
-                            <span className="text-sm font-medium text-gray-600 whitespace-nowrap">
-                                {textoMeses}
-                            </span>
-                        )}
+            <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 sm:p-6 space-y-6">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <FaPaw className="text-blue-600 w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Datos de la mascota
+                        </h3>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Se calcula con la fecha de nacimiento</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CampoFormulario
+                            label="Nombre"
+                            name="nombre"
+                            value={formData.nombre}
+                            onChange={handleChange}
+                            placeholder="Ej: Max"
+                            error={errores.nombre}
+                            requerido
+                        />
+                        <CampoFormulario
+                            label="Color"
+                            name="color"
+                            value={formData.color}
+                            onChange={handleChange}
+                            placeholder="Ej: Dorado"
+                            error={errores.color}
+                            requerido
+                        />
+                        <SelectorEspecie
+                            especie={formData.especie}
+                            esOtroSeleccionado={esOtroSeleccionado}
+                            onSeleccionarEspecie={handleSeleccionarEspecie}
+                            especieOtroTexto={especieOtroTexto}
+                            onChangeOtro={handleCambioOtro}
+                            error={errores.especie}
+                        />
+                        <CampoFormulario
+                            label="Raza"
+                            name="raza"
+                            value={formData.raza}
+                            onChange={handleChange}
+                            placeholder="Ej: Golden Retriever"
+                            error={errores.raza}
+                            requerido
+                        />
+                        <SelectorSexo
+                            sexo={formData.sexo}
+                            onSeleccionarSexo={(s) => {
+                                setFormData((p) => ({ ...p, sexo: s }));
+                                limpiarError("sexo");
+                            }}
+                            error={errores.sexo}
+                        />
+                    </div>
                 </div>
 
-                <div>
-                    <label className="block mb-1 font-medium">Peso (kg)</label>
-                    <input
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        inputMode="decimal"
-                        name="peso"
-                        value={formData.peso}
-                        onChange={handleChange}
-                        onKeyDown={handlePesoKeyDown}
-                        placeholder="Ej: 8.5"
-                        className="w-full border rounded-lg px-3 py-2"
-                    />
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <FaHeartbeat className="text-red-500 w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Salud
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CampoFormulario
+                            label="Fecha de nacimiento"
+                            name="fechaNacimiento"
+                            type="date"
+                            max={hoy}
+                            value={formData.fechaNacimiento}
+                            onChange={handleChange}
+                            error={errores.fechaNacimiento}
+                            requerido
+                            badge={
+                                chipEdad && (
+                                    <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                                        {chipEdad}
+                                    </span>
+                                )
+                            }
+                        />
+                        <CampoFormulario
+                            label="Peso (kg)"
+                            name="peso"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={formData.peso}
+                            onChange={handleChange}
+                            onKeyDown={(e) =>
+                                ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()
+                            }
+                            placeholder="Ej: 12.5"
+                            error={errores.peso}
+                            requerido
+                        />
+                    </div>
                 </div>
 
-                <div>
-                    <label className="block mb-1 font-medium">Propietario</label>
-                    <input
-                        type="text"
-                        name="propietario"
-                        value={formData.propietario}
-                        onChange={handleChange}
-                        className="w-full border rounded-lg px-3 py-2"
-                        placeholder="Ej: Juan Pérez"
-                    />
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <FaUser className="text-blue-600 w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Propietario y Contacto
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CampoFormulario
+                            label="Propietario"
+                            name="propietario"
+                            value={formData.propietario}
+                            onChange={handleChange}
+                            placeholder="Nombre del dueño"
+                            error={errores.propietario}
+                            requerido
+                        />
+                        <CampoFormulario
+                            label="Teléfono"
+                            name="telefono"
+                            type="tel"
+                            inputMode="tel"
+                            maxLength={15}
+                            value={formData.telefono}
+                            onChange={handleChange}
+                            placeholder="7123-4567 o +503 7123-4567"
+                            error={errores.telefono}
+                            requerido
+                        />
+                        <CampoFormulario
+                            label="Dirección"
+                            name="direccion"
+                            value={formData.direccion}
+                            onChange={handleChange}
+                            placeholder="Ej: Col. Escalón, Pasaje 2, San Salvador"
+                            error={errores.direccion}
+                            className="col-span-1 md:col-span-2"
+                            requerido
+                        />
+                    </div>
                 </div>
 
-                <div>
-                    <label className="block mb-1 font-medium">Teléfono</label>
-                    <input
-                        type="text"
-                        inputMode="tel"
-                        maxLength={15}
-                        placeholder="7123-4567"
-                        name="telefono"
-                        value={formData.telefono}
-                        onChange={handleChange}
-                        className="w-full border rounded-lg px-3 py-2"
-                    />
+                {!esCliente && (
+                    <div className="space-y-3 pt-2">
+                        <label className="text-sm font-medium text-gray-700 block">
+                            Estado del registro
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 max-w-xs">
+                            {["Activo", "Inactivo"].map((est) => (
+                                <button
+                                    key={est}
+                                    type="button"
+                                    onClick={() =>
+                                        setFormData((prev) => ({ ...prev, estado: est }))
+                                    }
+                                    className={`py-2 px-3 rounded-lg text-sm font-semibold border transition ${formData.estado === est ? (est === "Activo" ? "bg-blue-50 text-blue-700 border-blue-600 shadow-sm" : "bg-gray-100 text-gray-700 border-gray-400 shadow-sm") : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
+                                >
+                                    {est}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button
+                        type="button"
+                        onClick={intentarCerrar}
+                        disabled={guardando}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={guardando}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {guardando ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Guardando...</span>
+                            </>
+                        ) : (
+                            <>
+                                <FaCheckCircle className="w-4 h-4" />
+                                <span>{mascota ? "Actualizar mascota" : "Guardar mascota"}</span>
+                            </>
+                        )}
+                    </button>
                 </div>
-            </div>
-
-            <div className="mt-4">
-                <label className="block mb-1 font-medium text-gray-600">Dirección</label>
-                <textarea
-                    name="direccion"
-                    value={formData.direccion}
-                    onChange={handleChange}
-                    rows="3"
-                    placeholder="Ej: Calle Principal #123, San Salvador"
-                    className="w-full border rounded-lg px-3 py-2 text-gray-600"
-                />
-            </div>
-
-            <div className="mt-4">
-                <label className="block mb-1 font-medium text-gray-600">Estado</label>
-                <select
-                    name="estado"
-                    value={formData.estado}
-                    onChange={handleChange}
-                    className="w-full border rounded-lg px-3 py-2 text-gray-600"
-                >
-                    <option value="Activo">Activo</option>
-                    <option value="En tratamiento">En tratamiento</option>
-                    <option value="Inactivo">Inactivo</option>
-                </select>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-                <button
-                    type="submit"
-                    disabled={guardando}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {guardando ? "Guardando..." : "Guardar"}
-                </button>
-
-                <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={guardando}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50"
-                >
-                    Cancelar
-                </button>
-            </div>
-        </form>
+            </form>
+        </ModalFormulario>
     );
 }

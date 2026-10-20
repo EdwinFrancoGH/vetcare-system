@@ -1,13 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import { formatearEdad } from "../../utils/citas";
 
 export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha = true }) {
 
     return (
         <tr className="border-b hover:bg-gray-50 text-gray-900">
 
-            <td className="p-4">{mascota.nombre}</td>
+            <td className="p-4 font-medium">
+                <div className="flex items-center gap-2">
+                    <span>{mascota.nombre}</span>
+                    {mascota.estado === "Inactivo" && (
+                        <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full font-normal border border-gray-300">
+                            Inactivo
+                        </span>
+                    )}
+                    {mascota.estado === "En tratamiento" && (
+                        <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-normal border border-amber-200">
+                            En tratamiento
+                        </span>
+                    )}
+                </div>
+            </td>
+
+            <td className="p-4 text-gray-700">{mascota.propietario || "—"}</td>
 
             <td className="p-4">{mascota.especie}</td>
 
@@ -15,7 +32,7 @@ export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha
 
             <td className="p-4">{mascota.sexo}</td>
 
-            <td className="p-4">{mascota.edad}</td>
+            <td className="p-4">{formatearEdad(mascota.fechaNacimiento, mascota.edad)}</td>
 
             <td className="p-4 text-center">
 
