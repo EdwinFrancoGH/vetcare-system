@@ -7,12 +7,12 @@ import { obtenerCitasPorMascota } from "../services/citas.service";
 import { ultimaDosisPorVacuna } from "../utils/estadoClinico";
 import {
     formatearFechaCorta,
+    esCitaProxima,
     hoyISO,
     sumarDiasISO,
 } from "../utils/citas";
 import { useAuth } from "../context/AuthContext";
 
-const ESTADOS_ACTIVOS = ["reservada", "confirmada"];
 const EVENTO_ACTUALIZAR = "vetcare:recordatorios-actualizar";
 
 export default function useRecordatoriosCliente() {
@@ -90,10 +90,8 @@ export default function useRecordatoriosCliente() {
                 }
             });
 
-            // Citas: hoy o mañana (en estado activo)
-            const citasProximas = todasLasCitas.filter(
-                (c) => ESTADOS_ACTIVOS.includes(c.estado) && c.fecha >= hoy
-            );
+            // Citas: hoy o mañana (solo si es próxima según esCitaProxima)
+            const citasProximas = todasLasCitas.filter((c) => esCitaProxima(c));
 
             citasProximas.forEach((c) => {
                 if (c.fecha === hoy) {
