@@ -12,12 +12,15 @@ import {
     clasificarEstadoPaciente,
     detectarConsultasFrecuentes,
     DIAS_VENTANA_FRECUENCIA,
+    ultimaDosisPorVacuna,
 } from "../../../../utils/estadoClinico";
 import ResumenClinico from "../../../../components/historial/ResumenClinico";
 import GraficaPeso from "../../../../components/historial/GraficaPeso";
 import LineaTiempoClinica from "../../../../components/historial/LineaTiempoClinica";
 import AlertasPendientes from "../../../../components/historial/AlertasPendientes";
 import RequireRole from "../../../../components/auth/RequireRole";
+import { useAuth } from "../../../../context/AuthContext";
+import { hoyISO, sumarDiasISO, formatearFechaCorta } from "../../../../utils/citas";
 import Swal from "sweetalert2";
 
 const COLOR_ESTADO_CLINICO = {
@@ -33,6 +36,8 @@ const COLOR_ESTADO_CLINICO = {
 function FichaMascotaPage() {
 
     const { id } = useParams();
+    const { userRole } = useAuth();
+    const esCliente = userRole === "Cliente";
 
     const [mascota, setMascota] = useState(null);
     const [historiales, setHistoriales] = useState([]);
@@ -72,7 +77,10 @@ function FichaMascotaPage() {
         } catch (error) {
 
             console.error("Error al cargar la ficha de la mascota:", error);
-            Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
+            // Si el backend responde 403 o 404 (mascota que no es suya o no existe), no mostrar alerta de conexión
+            if (![403, 404].includes(error.response?.status)) {
+                Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
+            }
 
         } finally {
 
@@ -87,7 +95,14 @@ function FichaMascotaPage() {
     }
 
     if (!mascota) {
-        return <p className="text-gray-600">Mascota no encontrada.</p>;
+        return (
+            <div>
+                <Link href="/mascotas" className="text-blue-700 hover:underline">
+                    &larr; {esCliente ? "Volver a Mis Mascotas" : "Volver a Mascotas"}
+                </Link>
+                <p className="text-gray-600 mt-4">Mascota no encontrada.</p>
+            </div>
+        );
     }
 
     const { vencidos, proximos } = calcularPendientes(historiales, vacunas);
@@ -99,7 +114,7 @@ function FichaMascotaPage() {
         <div>
 
             <Link href="/mascotas" className="text-blue-700 hover:underline">
-                &larr; Volver a Mascotas
+                &larr; {esCliente ? "Volver a Mis Mascotas" : "Volver a Mascotas"}
             </Link>
 
             <div className="bg-white rounded-xl shadow p-6 my-6">
@@ -119,12 +134,14 @@ function FichaMascotaPage() {
                             {mascota.estado}
                         </span>
 
-                        <span
-                            title="Estado clínico calculado a partir de pendientes vencidos y próximos"
-                            className={`px-3 py-1 rounded-full text-sm font-medium ${COLOR_ESTADO_CLINICO[estadoClinico]}`}
-                        >
-                            Estado clínico: {estadoClinico}
-                        </span>
+                        {!esCliente && (
+                            <span
+                                title="Estado clínico calculado a partir de pendientes vencidos y próximos"
+                                className={`px-3 py-1 rounded-full text-sm font-medium ${COLOR_ESTADO_CLINICO[estadoClinico]}`}
+                            >
+                                Estado clínico: {estadoClinico}
+                            </span>
+                        )}
 
                     </div>
 
@@ -164,7 +181,7 @@ function FichaMascotaPage() {
                     nombreMascota={mascota.nombre}
                 />
 
-                {frecuencia.esFrecuente && (
+                {!esCliente && frecuencia.esFrecuente && (
                     <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4">
                         <p className="font-semibold">
                             ⚠ Consultas frecuentes detectadas
@@ -176,14 +193,104 @@ function FichaMascotaPage() {
                     </div>
                 )}
 
-                <ResumenClinico
-                    resumen={generarResumenClinico(historiales, vacunas)}
-                    nombreMascota={mascota.nombre}
-                />
+                {/* Si es Cliente y no hay historial, mostrar aviso claro en lugar de secciones vacías */}
+                {esCliente && historiales.length === 0 ? (
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <h2 className="text-xl font-bold text-gray-800 mb-2">
+                            Historial Clínico
+                        </h2>
+                        <p className="text-gray-500">
+                            Aún no hay consultas registradas para {mascota.nombre}.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        <ResumenClinico
+                            resumen={generarResumenClinico(historiales, vacunas)}
+                            nombreMascota={mascota.nombre}
+                        />
 
-                <GraficaPeso historiales={historiales} />
+                        <GraficaPeso historiales={historiales} />
+                    </>
+                )}
 
-                <LineaTiempoClinica eventos={construirLineaTiempo(historiales, vacunas)} />
+                {/* Carnet de vacunas para el Cliente (antes de la línea de tiempo) */}
+                {esCliente && (
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <h2 className="text-xl font-bold text-gray-800 mb-4">
+                            Carnet de vacunas
+                        </h2>
+
+                        {vacunas.length === 0 ? (
+                            <p className="text-gray-500">
+                                Aún no hay vacunas registradas para {mascota.nombre}.
+                            </p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-left">
+                                    <thead className="bg-blue-900 text-white">
+                                        <tr>
+                                            <th className="p-4">Vacuna</th>
+                                            <th className="p-4">Fecha de aplicación</th>
+                                            <th className="p-4">Próxima dosis</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {(() => {
+                                            const idsUltimaDosis = new Set(
+                                                ultimaDosisPorVacuna(vacunas).map((v) => v.id)
+                                            );
+                                            const hoy = hoyISO();
+                                            const limite30Dias = sumarDiasISO(hoy, 30);
+
+                                            return vacunas.map((vacuna) => {
+                                                const fechaProx = (vacuna.proximaFecha || "").slice(0, 10);
+                                                const esUltimaDosis = idsUltimaDosis.has(vacuna.id);
+                                                const esVencida = fechaProx && fechaProx < hoy;
+                                                const esProxima = fechaProx && fechaProx >= hoy && fechaProx <= limite30Dias;
+
+                                                return (
+                                                    <tr key={vacuna.id} className="hover:bg-gray-50 text-gray-900">
+                                                        <td className="p-4 font-medium">{vacuna.nombre}</td>
+                                                        <td className="p-4">{formatearFechaCorta(vacuna.fecha)}</td>
+                                                        <td className="p-4">
+                                                            {vacuna.proximaFecha ? (
+                                                                esUltimaDosis ? (
+                                                                    <span
+                                                                        className={
+                                                                            esVencida
+                                                                                ? "text-red-700 bg-red-100 px-2.5 py-1 rounded-full text-sm font-semibold"
+                                                                                : esProxima
+                                                                                ? "text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full text-sm font-semibold"
+                                                                                : "text-gray-700 font-medium"
+                                                                        }
+                                                                    >
+                                                                        {formatearFechaCorta(vacuna.proximaFecha)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-gray-400 text-sm">
+                                                                        {formatearFechaCorta(vacuna.proximaFecha)} (refuerzo aplicado)
+                                                                    </span>
+                                                                )
+                                                            ) : (
+                                                                <span className="text-gray-400">—</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            });
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Línea de tiempo clínica: el personal siempre la ve; el cliente la ve cuando hay historial */}
+                {(!esCliente || historiales.length > 0) && (
+                    <LineaTiempoClinica eventos={construirLineaTiempo(historiales, vacunas)} />
+                )}
 
             </div>
 
@@ -195,7 +302,7 @@ function FichaMascotaPage() {
 
 export default function FichaMascotaPageGuard() {
     return (
-        <RequireRole roles={["Administrador", "Recepcionista", "Veterinario"]}>
+        <RequireRole roles={["Administrador", "Recepcionista", "Veterinario", "Cliente"]}>
             <FichaMascotaPage />
         </RequireRole>
     );

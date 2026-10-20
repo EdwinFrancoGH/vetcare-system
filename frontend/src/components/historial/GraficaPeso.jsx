@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatearFechaCorta } from "../../utils/citas";
 
 // Gráfica de línea, autocontenida en SVG (sin librerías externas,
 // ya que el proyecto no trae un package.json con dependencias de
@@ -8,7 +9,7 @@ import { useMemo, useState } from "react";
 // en el resto de la interfaz (bg-blue-700 / bg-blue-900).
 const VIEW_W = 640;
 const VIEW_H = 260;
-const PADDING = { top: 24, right: 24, bottom: 32, left: 44 };
+const PADDING = { top: 24, right: 68, bottom: 32, left: 44 };
 const COLOR_LINEA = "#2a78d6";
 
 function redondearTicks(min, max, cantidad = 4) {
@@ -191,8 +192,9 @@ export default function GraficaPeso({ historiales }) {
                     )}
 
                     <text
-                        x={ultimo.x + 8}
+                        x={ultimo.x + 8 > VIEW_W - 55 ? ultimo.x - 8 : ultimo.x + 8}
                         y={ultimo.y}
+                        textAnchor={ultimo.x + 8 > VIEW_W - 55 ? "end" : "start"}
                         fontSize="11"
                         fontWeight="600"
                         fill="#111827"
@@ -202,7 +204,7 @@ export default function GraficaPeso({ historiales }) {
                     </text>
 
                     <text x={PADDING.left} y={VIEW_H - 8} fontSize="10" fill="#6b7280">
-                        {puntos[0].fecha}
+                        {formatearFechaCorta(puntos[0].fecha)}
                     </text>
 
                     <text
@@ -212,7 +214,7 @@ export default function GraficaPeso({ historiales }) {
                         fill="#6b7280"
                         textAnchor="end"
                     >
-                        {puntos[puntos.length - 1].fecha}
+                        {formatearFechaCorta(puntos[puntos.length - 1].fecha)}
                     </text>
 
                 </svg>
@@ -227,7 +229,7 @@ export default function GraficaPeso({ historiales }) {
                             whiteSpace: "nowrap",
                         }}
                     >
-                        {coordenadas[activo].fecha}: {coordenadas[activo].peso} kg
+                        {formatearFechaCorta(coordenadas[activo].fecha)}: {coordenadas[activo].peso} kg
                     </div>
                 )}
 

@@ -47,6 +47,15 @@ export function sumarDiasISO(fechaISO, dias) {
     return formatearISO(fecha);
 }
 
+// Formatea YYYY-MM-DD a DD/MM/AAAA sin usar new Date para evitar desfases de zona horaria
+export function formatearFechaCorta(iso) {
+    if (!iso || typeof iso !== "string") return "";
+    const parte = iso.slice(0, 10);
+    const [yyyy, mm, dd] = parte.split("-");
+    if (!yyyy || !mm || !dd) return iso;
+    return `${dd}/${mm}/${yyyy}`;
+}
+
 // Devuelve el lunes de la semana que contiene `fechaISO` (o de hoy si se omite)
 export function inicioDeSemana(fechaISO = hoyISO()) {
     const fecha = parseFechaISO(fechaISO);

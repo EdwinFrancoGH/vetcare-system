@@ -19,7 +19,7 @@ export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha
 
             <td className="p-4 text-center">
 
-            {/* La ficha clínica usa historiales/vacunas, que son solo del personal */}
+            {/* Enlace a la ficha de la mascota */}
             {mostrarFicha && (
                 <Link
                     href={`/mascotas/${mascota.id}`}
