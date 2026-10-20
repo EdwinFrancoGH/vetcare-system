@@ -51,6 +51,11 @@ export const validarCita = (datos) => {
         return "El teléfono de contacto es obligatorio.";
     }
 
+    const TELEFONO_REGEX = /^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/;
+    if (!TELEFONO_REGEX.test(telefono.trim())) {
+        return "El teléfono debe tener 8 dígitos (ej. 7123-4567).";
+    }
+
     if (!motivo || motivo.trim() === "") {
         return "El motivo de la cita es obligatorio.";
     }
