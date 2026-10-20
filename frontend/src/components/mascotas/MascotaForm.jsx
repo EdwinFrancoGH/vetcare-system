@@ -46,6 +46,9 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
   const { userRole, userData } = useAuth();
   const esCliente = userRole === "Cliente";
 
+  // Fecha de hoy en El Salvador para limitar que la fecha de nacimiento no sea futura
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/El_Salvador" }).format(new Date());
+
   const [formData, setFormData] = useState({
     nombre: "",
     especie: "",
@@ -294,6 +297,7 @@ const handleSubmit = async (e) => {
             name="fechaNacimiento"
             value={formData.fechaNacimiento}
             onChange={handleChange}
+            max={hoy}
             className="w-full border rounded-lg px-3 py-2"
           />
         </div>
