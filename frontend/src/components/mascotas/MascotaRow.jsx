@@ -23,6 +23,8 @@ export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha
             {mostrarFicha && (
                 <Link
                     href={`/mascotas/${mascota.id}`}
+                    aria-label="Ver ficha"
+                    title="Ver ficha"
                     className="bg-blue-700 hover:bg-blue-800 text-white px-3 py-1 rounded inline-block mr-2"
                 >
                     Ver ficha
@@ -31,6 +33,8 @@ export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha
 
             <button
                 onClick={() => onEditar(mascota)}
+                aria-label="Editar mascota"
+                title="Editar mascota"
                 className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded mr-2"
             >
                 Editar
@@ -38,9 +42,9 @@ export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha
 
             <button
                 onClick={() => onEliminar(mascota.id)}
-                
+                aria-label="Eliminar mascota"
+                title="Eliminar mascota"
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
-                
             >
                 Eliminar
             </button>

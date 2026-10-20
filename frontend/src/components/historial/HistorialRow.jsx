@@ -34,6 +34,8 @@ export default function HistorialRow({ historial, nombreMascota, onVerFicha, onE
                     e.stopPropagation();
                     onEditar(historial);
                 }}
+                aria-label="Editar consulta"
+                title="Editar consulta"
                 className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
             >
                 Editar
@@ -44,6 +46,8 @@ export default function HistorialRow({ historial, nombreMascota, onVerFicha, onE
                     e.stopPropagation();
                     onEliminar(historial.id);
                 }}
+                aria-label="Eliminar consulta"
+                title="Eliminar consulta"
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded ml-2"
             >
                 Eliminar

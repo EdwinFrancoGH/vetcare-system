@@ -286,7 +286,7 @@ function ReportesPage() {
                                                 {venta.fechaVenta
                                                     ? new Date(
                                                           venta.fechaVenta
-                                                      ).toLocaleString()
+                                                      ).toLocaleString('es-SV')
                                                     : "-"}
                                             </td>
 

@@ -18,6 +18,7 @@ import GraficaPeso from "../../../../components/historial/GraficaPeso";
 import LineaTiempoClinica from "../../../../components/historial/LineaTiempoClinica";
 import AlertasPendientes from "../../../../components/historial/AlertasPendientes";
 import RequireRole from "../../../../components/auth/RequireRole";
+import Swal from "sweetalert2";
 
 const COLOR_ESTADO_CLINICO = {
     "Crítico": "bg-red-100 text-red-800",
@@ -71,6 +72,7 @@ function FichaMascotaPage() {
         } catch (error) {
 
             console.error("Error al cargar la ficha de la mascota:", error);
+            Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
 
         } finally {
 
