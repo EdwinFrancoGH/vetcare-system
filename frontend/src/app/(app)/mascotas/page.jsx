@@ -158,7 +158,10 @@ function MascotasPage() {
                 </h1>
 
                 <button
-                    onClick={() => setMostrarFormulario(true)}//abrir el formulario
+                    onClick={() => {
+                        setMascotaEditar(null);
+                        setMostrarFormulario(true);
+                    }}
                     className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2 rounded-lg"
                 >
                     Nueva Mascota
@@ -183,7 +186,7 @@ function MascotasPage() {
             mascotas={mascotas}
             onEditar={editarMascota}
             onEliminar={borrarMascota}
-            mostrarFicha={!esCliente}
+            mostrarFicha={true}
             />
 
             {/* AGREGO EL MODAL */}
