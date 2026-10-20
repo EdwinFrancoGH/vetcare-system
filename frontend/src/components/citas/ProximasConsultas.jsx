@@ -132,7 +132,8 @@ export default function ProximasConsultas({ veterinario, onCambio }) {
                 </div>
             ) : (
                 <div className="bg-white rounded-xl shadow overflow-hidden">
-                    <table className="min-w-full">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full">
                         <thead className="bg-blue-900 text-white">
                             <tr>
                                 <th className="p-4 text-left">Fecha</th>
@@ -197,6 +198,7 @@ export default function ProximasConsultas({ veterinario, onCambio }) {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
 
