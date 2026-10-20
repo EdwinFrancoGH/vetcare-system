@@ -31,6 +31,8 @@ import PanelAlertas from "../../../components/dashboard/PanelAlertas";
 import RequireRole from "../../../components/auth/RequireRole";
 import { useAuth } from "../../../context/AuthContext";
 import Swal from "sweetalert2";
+import useRecordatoriosCliente from "../../../hooks/useRecordatoriosCliente";
+import BotonAgregarCalendar from "../../../components/ui/BotonAgregarCalendar";
 
 // Panel clínico: personal (Administrador / Recepcionista / Veterinario).
 function Dashboard() {
@@ -133,6 +135,7 @@ function getEspecieConfig(especie = "") {
 function DashboardCliente() {
 
     const { userData } = useAuth();
+    const { recordatorios, recargar: recargarRecordatorios } = useRecordatoriosCliente();
 
     const [mascotas, setMascotas] = useState([]);
     const [vacunas, setVacunas] = useState([]);
@@ -227,6 +230,7 @@ function DashboardCliente() {
             await cancelarCita(cita.id);
             await Swal.fire("¡Cancelada!", "La cita ha sido cancelada exitosamente.", "success");
             await cargarDatos();
+            await recargarRecordatorios();
         } catch (err) {
             console.error("Error al cancelar la cita:", err);
             Swal.fire(
@@ -270,17 +274,22 @@ function DashboardCliente() {
             return {
                 texto: "Sin vacunas pendientes",
                 clase: "text-gray-500",
+                vacuna: null,
+                esVencida: false,
             };
         }
 
         const prox = deEstaMascota[0];
         const fechaCorta = formatearFechaCorta(prox.proximaFecha);
         const pFecha = (prox.proximaFecha || "").slice(0, 10);
+        const esVencida = pFecha < hoy;
 
-        if (pFecha < hoy) {
+        if (esVencida) {
             return {
                 texto: `Próxima vacuna: ${prox.nombre} – ${fechaCorta}`,
                 clase: "text-red-700 font-semibold",
+                vacuna: prox,
+                esVencida: true,
             };
         }
 
@@ -288,60 +297,18 @@ function DashboardCliente() {
             return {
                 texto: `Próxima vacuna: ${prox.nombre} – ${fechaCorta}`,
                 clase: "text-amber-800 font-semibold",
+                vacuna: prox,
+                esVencida: false,
             };
         }
 
         return {
             texto: `Próxima vacuna: ${prox.nombre} – ${fechaCorta}`,
             clase: "text-gray-700 font-medium",
+            vacuna: prox,
+            esVencida: false,
         };
     }
-
-    // Recordatorios (2.5)
-    const recordatorios = [];
-
-    vacunasUltimaDosis.forEach((v) => {
-        if (!v.proximaFecha) return;
-        const nombre = nombreMascota(v.mascotaId);
-        const fechaCorta = formatearFechaCorta(v.proximaFecha);
-        const pFecha = (v.proximaFecha || "").slice(0, 10);
-
-        if (pFecha < hoy) {
-            recordatorios.push({
-                id: `v-vencida-${v.id}`,
-                fecha: v.proximaFecha,
-                tipo: "vencida",
-                mensaje: `La vacuna ${v.nombre} de ${nombre} venció el ${fechaCorta}`,
-            });
-        } else if (pFecha <= limite30Dias) {
-            recordatorios.push({
-                id: `v-porvencer-${v.id}`,
-                fecha: v.proximaFecha,
-                tipo: "por-vencer",
-                mensaje: `La vacuna ${v.nombre} de ${nombre} vence el ${fechaCorta}`,
-            });
-        }
-    });
-
-    proximas.forEach((c) => {
-        if (c.fecha === hoy) {
-            recordatorios.push({
-                id: `c-hoy-${c.id}`,
-                fecha: c.fecha,
-                tipo: "cita",
-                mensaje: `Hoy tienes cita con ${c.veterinario} a las ${c.hora}`,
-            });
-        } else if (c.fecha === maniana) {
-            recordatorios.push({
-                id: `c-maniana-${c.id}`,
-                fecha: c.fecha,
-                tipo: "cita",
-                mensaje: `Mañana tienes cita con ${c.veterinario} a las ${c.hora}`,
-            });
-        }
-    });
-
-    recordatorios.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
     // Filtrado de tablas
     const proximasFiltradas = filtroMascota
@@ -531,8 +498,18 @@ function DashboardCliente() {
                                                     </div>
                                                 </div>
 
-                                                <div className="bg-gray-50 rounded-lg p-2.5 mb-4 text-xs">
+                                                <div className="bg-gray-50 rounded-lg p-2.5 mb-4 text-xs flex items-center justify-between gap-2">
                                                     <p className={pv.clase}>{pv.texto}</p>
+                                                    {pv.vacuna && !pv.esVencida && (
+                                                        <BotonAgregarCalendar
+                                                            titulo={`Vacuna ${pv.vacuna.nombre} de ${m.nombre}`}
+                                                            fecha={pv.vacuna.proximaFecha}
+                                                            detalles={`Próxima dosis de la vacuna ${pv.vacuna.nombre} para ${m.nombre}.`}
+                                                            className="text-xs text-blue-700 hover:text-blue-900 hover:underline shrink-0 font-medium whitespace-nowrap"
+                                                        >
+                                                            Agregar a calendario
+                                                        </BotonAgregarCalendar>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -664,19 +641,33 @@ function DashboardCliente() {
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-center">
-                                                    {ESTADOS_ACTIVOS.includes(c.estado) && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleCancelarCita(c)}
-                                                            disabled={cancelandoId === c.id}
-                                                            aria-label="Cancelar cita"
-                                                            title="Cancelar cita"
-                                                            className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <BotonAgregarCalendar
+                                                            titulo={`Cita veterinaria de ${nombreMascota(c.mascotaId)}`}
+                                                            fecha={c.fecha}
+                                                            hora={c.hora}
+                                                            duracionMinutos={c.duracionMinutos || 30}
+                                                            detalles={`Veterinario: Dr(a). ${c.veterinario}${c.motivo ? `\nMotivo: ${c.motivo}` : ""}`}
+                                                            className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-medium px-2.5 py-1.5 rounded transition"
                                                         >
-                                                            <FaTimes className="text-xs" />
-                                                            {cancelandoId === c.id ? "Cancelando..." : "Cancelar"}
-                                                        </button>
-                                                    )}
+                                                            <FaCalendarAlt className="text-xs" />
+                                                            <span>Agregar a mi calendario</span>
+                                                        </BotonAgregarCalendar>
+
+                                                        {ESTADOS_ACTIVOS.includes(c.estado) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleCancelarCita(c)}
+                                                                disabled={cancelandoId === c.id}
+                                                                aria-label="Cancelar cita"
+                                                                title="Cancelar cita"
+                                                                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                <FaTimes className="text-xs" />
+                                                                {cancelandoId === c.id ? "Cancelando..." : "Cancelar"}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
