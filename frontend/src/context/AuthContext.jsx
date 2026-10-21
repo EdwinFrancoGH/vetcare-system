@@ -66,7 +66,24 @@ export function AuthProvider({ children }) {
         return sendPasswordResetEmail(auth, email, actionCodeSettings);
     };
 
-    const value = { user, userRole, userData, loading, login, register, logout, resetPassword };
+    // Vuelve a leer el documento de Firestore del usuario actual (por
+    // ejemplo, después de subir una foto de perfil) sin recargar la página
+    // ni cerrar la sesión.
+    const refreshUserData = async () => {
+        if (!auth.currentUser) return;
+        try {
+            const docRef = doc(db, "usuarios", auth.currentUser.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                setUserRole(docSnap.data().role);
+                setUserData(docSnap.data());
+            }
+        } catch (error) {
+            console.error("Error refrescando datos de usuario:", error);
+        }
+    };
+
+    const value = { user, userRole, userData, loading, login, register, logout, resetPassword, refreshUserData };
 
     return (
         <AuthContext.Provider value={value}>

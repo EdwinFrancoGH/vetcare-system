@@ -1,37 +1,89 @@
 import express from "express";
 import cors from "cors";
 
-import authRoutes from "./routes/auth.routes.js";
+// --- Módulo Citas / Ficha clínica (rama "más estable") ---
 import mascotasRoutes from "./routes/mascotas.routes.js";
+import historialRoutes from "./routes/historial.routes.js";
+import vacunasRoutes from "./routes/vacunas.routes.js";
+import citasRoutes from "./routes/citas.routes.js";
+import horariosRoutes from "./routes/horarios.routes.js";
+
+// --- Módulo Autenticación / Ventas (integrado) ---
+import authRoutes from "./routes/auth.routes.js";
+import clientesRoutes from "./routes/clientes.routes.js";
 import productosRoutes from "./routes/productos.routes.js";
 import inventarioRoutes from "./routes/inventario.routes.js";
 import ventasRoutes from "./routes/ventas.routes.js";
 import reportesRoutes from "./routes/reportes.routes.js";
 import usersRoutes from "./routes/users.routes.js";
-import clientesRoutes from "./routes/clientes.routes.js";
 
-import { verifyToken } from "./middlewares/auth.middleware.js";
+import { verifyToken, verifyRoles, cargarRol } from "./middlewares/auth.middleware.js";
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// límite subido de 100kb (default) a 2mb: la foto de perfil viaja como
+// base64 dentro del JSON (ver users.controller.js -> updateProfile)
+app.use(express.json({ limit: "2mb" }));
 
-// Rutas públicas y de autenticación
+// Rutas públicas: solo login/registro pasa por aquí sin token.
+// (el propio login/registro ocurre en el cliente contra Firebase Auth;
+// este endpoint solo sincroniza el usuario recién autenticado en Firestore)
 app.use("/api/auth", authRoutes);
 
-// Rutas protegidas
-app.use("/api/mascotas", verifyToken, mascotasRoutes);
-app.use("/api/clientes", verifyToken, clientesRoutes);
+// A partir de aquí, TODAS las rutas de datos requieren estar autenticado.
+// Antes de este merge, "mascotas/historial/vacunas/citas/horarios" no
+// tenían ninguna protección (la rama citas/historial nunca integró login).
+// Ahora que el login se integró, se protegen igual que ventas/clientes.
+//
+// Además de estar autenticado, historiales/vacunas muestran a TODOS los
+// pacientes de la clínica (no están filtrados por dueño), así que se
+// limitan al personal (Administrador/Recepcionista/Veterinario). Mascotas
+// sí está filtrada por dueño (propietarioUid): un Cliente ve solo las suyas. citas/horarios sí los usa un Cliente (reservar su cita),
+// así que solo llevan verifyToken aquí; las rutas de citas/horarios que
+// son exclusivas de personal se restringen dentro de sus propios
+// routers (ver citas.routes.js y horarios.routes.js).
+const SOLO_PERSONAL_CLINICO = verifyRoles(
+    "Administrador",
+    "Recepcionista",
+    "Veterinario"
+);
 
-// Módulos de Inventario y Ventas
-app.use("/api/productos", productosRoutes);
-app.use("/api/inventario", inventarioRoutes);
-app.use("/api/ventas", ventasRoutes);
-app.use("/api/reportes", reportesRoutes);
+// Mascotas: el personal ve todas; un Cliente solo ve y gestiona las
+// suyas (filtradas por propietarioUid en mascotas.controller.js).
+app.use("/api/mascotas", verifyToken, cargarRol, mascotasRoutes);
 
-// Administración de usuarios
+// Historiales: ahora también se permite el acceso al Cliente.
+// El controlador verifica que la mascota pertenezca al Cliente antes
+// de devolver su historial. El personal mantiene acceso normal.
+app.use("/api/historiales", verifyToken, cargarRol, historialRoutes);
+
+// Vacunas: ahora también se permite el acceso al Cliente.
+// El controlador verifica que la mascota asociada pertenezca al Cliente
+// antes de devolver sus vacunas. El personal mantiene acceso normal.
+app.use("/api/vacunas", verifyToken, cargarRol, vacunasRoutes);
+
+app.use("/api/citas", verifyToken, cargarRol, citasRoutes);
+app.use("/api/horarios", verifyToken, horariosRoutes);
+
+// clientes.routes.js y users.routes.js ya aplican verifyToken (y
+// verifyAdmin/verifyRoles donde corresponde) internamente con
+// router.use(), por eso aquí no se duplica el middleware.
+app.use("/api/clientes", clientesRoutes);
 app.use("/api/users", usersRoutes);
+
+// Módulos de Inventario y Ventas: son de gestión del negocio, no
+// clínicos, así que un Veterinario tampoco los necesita — solo
+// Administrador/Recepcionista.
+const SOLO_ADMINISTRACION = verifyRoles(
+    "Administrador",
+    "Recepcionista"
+);
+
+app.use("/api/productos", verifyToken, SOLO_ADMINISTRACION, productosRoutes);
+app.use("/api/inventario", verifyToken, SOLO_ADMINISTRACION, inventarioRoutes);
+app.use("/api/ventas", verifyToken, SOLO_ADMINISTRACION, ventasRoutes);
+app.use("/api/reportes", verifyToken, SOLO_ADMINISTRACION, reportesRoutes);
 
 app.get("/", (req, res) => {
     res.json({

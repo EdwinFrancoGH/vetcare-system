@@ -17,12 +17,17 @@ export const syncUser = async (req, res) => {
             });
         }
 
-        // Si es la primera vez (registro), lo creamos con el rol por defecto
+        // Si es la primera vez (registro), lo creamos con el rol por defecto.
+        // Cualquiera que se auto-registre desde /register entra como
+        // "Cliente" (dueño de mascota). Los roles de staff (Administrador,
+        // Recepcionista, Veterinario) solo los puede asignar un
+        // Administrador ya existente, desde /usuarios (ver
+        // users.controller.js -> createUser / updateUserRole).
         const newUserData = {
             uid,
             email,
             name: name || '',
-            role: 'Recepcionista', // Rol por defecto
+            role: 'Cliente', // Rol por defecto
             createdAt: new Date().toISOString(),
             status: 'Active'
         };
