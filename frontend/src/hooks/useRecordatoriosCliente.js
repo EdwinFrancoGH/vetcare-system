@@ -80,6 +80,9 @@ export default function useRecordatoriosCliente() {
 
             const nuevos = [];
 
+            const ahora = Date.now();
+            const TRES_DIAS_MS = 3 * 24 * 60 * 60 * 1000;
+
             // Vacunas: vencidas y por vencer en los próximos 30 días
             vacunasUltimaDosis.forEach((v) => {
                 if (!v.proximaFecha) return;
@@ -92,6 +95,7 @@ export default function useRecordatoriosCliente() {
                         id: `v-vencida-${v.id}`,
                         fecha: v.proximaFecha,
                         tipo: "vencida",
+                        categoria: "vacuna",
                         mensaje: `La vacuna ${v.nombre} de ${nombre} venció el ${fechaCorta}`,
                     });
                 } else if (pFecha <= limite30Dias) {
@@ -99,6 +103,7 @@ export default function useRecordatoriosCliente() {
                         id: `v-porvencer-${v.id}`,
                         fecha: v.proximaFecha,
                         tipo: "por-vencer",
+                        categoria: "vacuna",
                         mensaje: `La vacuna ${v.nombre} de ${nombre} vence el ${fechaCorta}`,
                     });
                 }
@@ -113,6 +118,7 @@ export default function useRecordatoriosCliente() {
                         id: `c-hoy-${c.id}`,
                         fecha: c.fecha,
                         tipo: "cita",
+                        categoria: "cita",
                         mensaje: `Hoy tienes cita con ${c.veterinario} a las ${c.hora}`,
                     });
                 } else if (c.fecha === maniana) {
@@ -120,6 +126,7 @@ export default function useRecordatoriosCliente() {
                         id: `c-maniana-${c.id}`,
                         fecha: c.fecha,
                         tipo: "cita",
+                        categoria: "cita",
                         mensaje: `Mañana tienes cita con ${c.veterinario} a las ${c.hora}`,
                     });
                 }
@@ -131,7 +138,13 @@ export default function useRecordatoriosCliente() {
                 const fechaLimite = obtenerFechaLimitePedido(p);
                 const esRetiro = p.tipo === "retiro";
                 const activo = p.estado === "pendiente" || p.estado === "listo";
-                const vencePronto = esRetiro && activo && esVencimientoHoyOManyana(fechaLimite);
+                const vencePronto = esRetiro && !p.pagado && activo
+                    && esVencimientoHoyOManyana(fechaLimite);
+
+                const transcurrido = p.fechaPedido
+                    ? (ahora - new Date(p.fechaPedido).getTime())
+                    : 0;
+                const pagadoDemorado = p.pagado && activo && transcurrido > TRES_DIAS_MS;
 
                 if (vencePronto) {
                     const fechaTxt = formatearFechaPedido(fechaLimite);
@@ -139,13 +152,27 @@ export default function useRecordatoriosCliente() {
                         id: `p-vence-${p.id}`,
                         fecha: fechaLimite,
                         tipo: "por-vencer",
+                        categoria: "pedido",
                         mensaje: `Tu pedido de ${desc} vence el ${fechaTxt}. Si no lo retiras se cancelará.`
+                    });
+                } else if (pagadoDemorado) {
+                    const mensaje = p.estado === "listo"
+                        ? `Tu pedido de ${desc} ya está pagado y listo. Pasa a retirarlo a la clínica.`
+                        : `Tu pedido de ${desc} ya está pagado. Te avisaremos cuando esté listo para retirar.`;
+
+                    nuevos.push({
+                        id: `p-demorado-${p.id}`,
+                        fecha: p.fechaPedido,
+                        tipo: "por-vencer",
+                        categoria: "pedido",
+                        mensaje
                     });
                 } else if (p.estado === "listo") {
                     nuevos.push({
                         id: `p-listo-${p.id}`,
                         fecha: p.fechaPedido,
                         tipo: "cita",
+                        categoria: "pedido",
                         mensaje: `Tu pedido de ${desc} está listo para retirar`
                     });
                 }
@@ -153,13 +180,11 @@ export default function useRecordatoriosCliente() {
 
             nuevos.sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
             setRecordatorios(nuevos);
-
         } catch (error) {
             console.error("Error al cargar recordatorios del cliente:", error);
         } finally {
             setCargando(false);
         }
-
     }, [esCliente]);
 
     useEffect(() => {
@@ -168,15 +193,11 @@ export default function useRecordatoriosCliente() {
 
     useEffect(() => {
         if (!esCliente) return;
-
         function handleActualizar() {
             cargar();
         }
-
         window.addEventListener(EVENTO_ACTUALIZAR, handleActualizar);
-        return () => {
-            window.removeEventListener(EVENTO_ACTUALIZAR, handleActualizar);
-        };
+        return () => window.removeEventListener(EVENTO_ACTUALIZAR, handleActualizar);
     }, [esCliente, cargar]);
 
     const recargar = useCallback(async () => {
@@ -186,10 +207,5 @@ export default function useRecordatoriosCliente() {
         }
     }, [cargar]);
 
-    return {
-        recordatorios,
-        cargando,
-        recargar,
-    };
+    return { recordatorios, cargando, recargar };
 }
-
