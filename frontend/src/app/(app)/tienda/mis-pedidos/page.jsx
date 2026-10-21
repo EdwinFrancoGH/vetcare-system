@@ -2,18 +2,31 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FaArrowLeft, FaShoppingBag, FaStore, FaExclamationCircle } from "react-icons/fa";
 import Swal from "sweetalert2";
 import RequireRole from "../../../../components/auth/RequireRole";
-import { obtenerMisPedidos, cancelarMiPedido } from "../../../../services/tienda.service";
+import {
+    obtenerMisPedidos,
+    cancelarMiPedido,
+    obtenerProductos
+} from "../../../../services/tienda.service";
+import { useCarrito } from "../../../../hooks/useCarrito";
+import {
+    procesarProductosReordenar,
+    formatearMensajeAjustes
+} from "../../../../utils/reordenarPedido";
 import TarjetaPedido from "../../../../components/tienda/TarjetaPedido";
 
 // Vista de pedidos realizados por el cliente autenticado
 export default function MisPedidosPage() {
+    const router = useRouter();
+    const { agregar } = useCarrito();
     const [pedidos, setPedidos] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState(null);
     const [cancelandoId, setCancelandoId] = useState(null);
+    const [reordenandoId, setReordenandoId] = useState(null);
 
     const cargarPedidos = async () => {
         try {
@@ -69,6 +82,60 @@ export default function MisPedidosPage() {
             });
         } finally {
             setCancelandoId(null);
+        }
+    };
+
+    const handleVolverAPedir = async (pedido) => {
+        try {
+            setReordenandoId(pedido.id);
+            const res = await obtenerProductos();
+            const catalogo = res.data?.data || [];
+            const { paraAgregar, noDisponibles, ajustados } =
+                procesarProductosReordenar(pedido.productos || [], catalogo);
+
+            if (paraAgregar.length === 0) {
+                await Swal.fire({
+                    title: "No disponibles",
+                    text: "Estos productos ya no están disponibles.",
+                    icon: "info",
+                    confirmButtonColor: "#1d4ed8"
+                });
+                return;
+            }
+
+            paraAgregar.forEach(({ producto, cantidad }) => {
+                agregar(producto, cantidad);
+            });
+
+            const hayAvisos = noDisponibles.length > 0 || ajustados.length > 0;
+            const textoMensaje = hayAvisos
+                ? formatearMensajeAjustes(noDisponibles, ajustados)
+                : "Agregamos los productos a tu carrito";
+
+            const conf = await Swal.fire({
+                title: hayAvisos ? "Carrito actualizado" : "¡Listo!",
+                text: textoMensaje,
+                icon: hayAvisos ? "info" : "success",
+                showCancelButton: true,
+                confirmButtonColor: "#1d4ed8",
+                cancelButtonColor: "#6b7280",
+                confirmButtonText: "Ir a la tienda",
+                cancelButtonText: "Seguir aquí"
+            });
+
+            if (conf.isConfirmed) {
+                router.push("/tienda");
+            }
+        } catch (err) {
+            console.error("Error al volver a pedir:", err);
+            Swal.fire({
+                title: "Error",
+                text: "No se pudo consultar el catálogo actual.",
+                icon: "error",
+                confirmButtonColor: "#1d4ed8"
+            });
+        } finally {
+            setReordenandoId(null);
         }
     };
 
@@ -148,6 +215,8 @@ export default function MisPedidosPage() {
                                     pedido={pedido}
                                     onCancelar={handleCancelar}
                                     cancelando={cancelandoId === pedido.id}
+                                    onVolverAPedir={handleVolverAPedir}
+                                    reordenando={reordenandoId === pedido.id}
                                 />
                             ))}
                         </div>
@@ -157,3 +226,4 @@ export default function MisPedidosPage() {
         </RequireRole>
     );
 }
+

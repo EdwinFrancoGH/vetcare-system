@@ -4,9 +4,15 @@ import { useState, useEffect, useMemo } from "react";
 import { FaClipboardList, FaExclamationCircle, FaBoxOpen } from "react-icons/fa";
 import Swal from "sweetalert2";
 import RequireRole from "../../../components/auth/RequireRole";
-import { obtenerPedidos, cambiarEstadoPedido } from "../../../services/pedidos.service";
+import {
+    obtenerPedidos,
+    cambiarEstadoPedido,
+    extenderPlazoPedido
+} from "../../../services/pedidos.service";
+import { obtenerTextoNuevaFechaLimite } from "../../../utils/extensionPlazo";
 import FiltrosPedidos from "../../../components/pedidos/FiltrosPedidos";
 import TarjetaPedidoPersonal from "../../../components/pedidos/TarjetaPedidoPersonal";
+
 
 // Gestión y despacho de pedidos para el personal administrativo y recepción
 export default function PedidosPage() {
@@ -159,6 +165,39 @@ export default function PedidosPage() {
         }
     };
 
+    const handleExtenderPlazo = async (pedido) => {
+        const fechaFormateada = obtenerTextoNuevaFechaLimite(pedido);
+        const conf = await Swal.fire({
+            title: "¿Dar más tiempo?",
+            text:
+                `¿Dar 2 días más para retirar el pedido de ` +
+                `${pedido.clienteNombre || "Cliente"}? Nuevo plazo: ${fechaFormateada}`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonColor: "#1d4ed8",
+            cancelButtonColor: "#6b7280",
+            confirmButtonText: "Sí, dar más tiempo",
+            cancelButtonText: "Volver"
+        });
+        if (!conf.isConfirmed) return;
+
+        try {
+            setProcesandoId(pedido.id);
+            await extenderPlazoPedido(pedido.id);
+            await Swal.fire("¡Listo!", "Plazo del pedido extendido correctamente.", "success");
+            await cargarLista(true);
+        } catch (err) {
+            await Swal.fire(
+                "Error",
+                err.response?.data?.message || "No se pudo extender el plazo.",
+                "error"
+            );
+            await cargarLista(true);
+        } finally {
+            setProcesandoId(null);
+        }
+    };
+
     const textoVacio = pestanaActiva === "todos"
         ? "No hay pedidos registrados."
         : `No hay pedidos ${pestanaActiva === "listo" ? "listos para retirar" : pestanaActiva + "s"}.`;
@@ -220,6 +259,7 @@ export default function PedidosPage() {
                                     onMarcarListo={handleMarcarListo}
                                     onEntregar={handleEntregar}
                                     onCancelar={handleCancelar}
+                                    onExtender={handleExtenderPlazo}
                                     procesando={procesandoId === pedido.id}
                                 />
                             ))}
@@ -230,3 +270,4 @@ export default function PedidosPage() {
         </RequireRole>
     );
 }
+

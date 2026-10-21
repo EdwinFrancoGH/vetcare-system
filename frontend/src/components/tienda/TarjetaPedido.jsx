@@ -1,6 +1,7 @@
 "use client";
 
-import { FaShoppingBag, FaBan, FaCalendarAlt, FaClock } from "react-icons/fa";
+import { FaShoppingBag, FaBan, FaCalendarAlt, FaClock, FaRedo } from "react-icons/fa";
+
 import { formatearFechaPedido } from "../../utils/fechasPedido";
 import {
     obtenerFechaLimitePedido,
@@ -9,7 +10,13 @@ import {
 import EstadoPedido from "./EstadoPedido";
 
 // Tarjeta que representa un pedido individual del cliente
-export default function TarjetaPedido({ pedido, onCancelar, cancelando = false }) {
+export default function TarjetaPedido({
+    pedido,
+    onCancelar,
+    cancelando = false,
+    onVolverAPedir,
+    reordenando = false
+}) {
     const idCorto = (pedido.id || "").slice(0, 6).toUpperCase();
     const fecha = formatearFechaPedido(pedido.fechaPedido);
     const tipoEtiqueta = pedido.tipo === "en_linea"
@@ -18,10 +25,14 @@ export default function TarjetaPedido({ pedido, onCancelar, cancelando = false }
 
     const fechaLimite = obtenerFechaLimitePedido(pedido);
     const mostrarRetiro = pedido.tipo === "retiro"
+        && !pedido.pagado
         && (pedido.estado === "pendiente" || pedido.estado === "listo")
         && fechaLimite;
     const fechaLimiteTexto = mostrarRetiro ? formatearFechaPedido(fechaLimite) : "";
     const vencePronto = mostrarRetiro ? esVencimientoProximo(fechaLimite) : false;
+    const esVencido = pedido.estado === "cancelado"
+        && (pedido.motivoCancelacion || "").startsWith("Vencido");
+
 
     return (
         <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition">
@@ -50,14 +61,26 @@ export default function TarjetaPedido({ pedido, onCancelar, cancelando = false }
                 </div>
             </div>
 
-            {/* Aviso especial cuando el pedido está listo */}
+            {/* Avisos contextuales según pago y estado */}
             {pedido.estado === "listo" && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs font-semibold text-blue-900 flex items-center gap-2">
-                    <span>Tu pedido está listo. Puedes pasar a retirarlo a la clínica.</span>
+                pedido.pagado ? (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-900 flex items-center gap-2">
+                        <span>Ya está pagado. Solo pasa a recogerlo.</span>
+                    </div>
+                ) : (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs font-semibold text-blue-900 flex items-center gap-2">
+                        <span>Tu pedido está listo. Puedes pasar a retirarlo a la clínica.</span>
+                    </div>
+                )
+            )}
+
+            {pedido.estado === "pendiente" && pedido.pagado && (
+                <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-600 flex items-center gap-2">
+                    <span>Pagado. Lo estamos preparando.</span>
                 </div>
             )}
 
-            {/* Plazo de retiro para pedidos pendientes o listos */}
+            {/* Plazo de retiro para pedidos pendientes o listos no pagados */}
             {mostrarRetiro && (
                 <div className={`text-xs flex items-center gap-1.5 ${
                     vencePronto ? "text-red-600 font-semibold" : "text-zinc-500"
@@ -67,11 +90,19 @@ export default function TarjetaPedido({ pedido, onCancelar, cancelando = false }
                 </div>
             )}
 
-            {/* Motivo de cancelación */}
-            {pedido.estado === "cancelado" && pedido.motivoCancelacion && (
-                <p className="text-[11px] text-zinc-400 italic">
-                    {pedido.motivoCancelacion}
-                </p>
+            {/* Motivo de cancelación o aviso si el pedido venció */}
+            {pedido.estado === "cancelado" && (
+                esVencido ? (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                        Este pedido venció porque no se retiró a tiempo. Puedes volver a pedirlo.
+                    </div>
+                ) : (
+                    pedido.motivoCancelacion && (
+                        <p className="text-[11px] text-zinc-400 italic">
+                            {pedido.motivoCancelacion}
+                        </p>
+                    )
+                )
             )}
 
             {/* Lista detallada de productos */}
@@ -111,7 +142,20 @@ export default function TarjetaPedido({ pedido, onCancelar, cancelando = false }
                         <span>{cancelando ? "Cancelando..." : "Cancelar pedido"}</span>
                     </button>
                 )}
+
+                {pedido.estado === "cancelado" && onVolverAPedir && (
+                    <button
+                        type="button"
+                        onClick={() => onVolverAPedir(pedido)}
+                        disabled={reordenando}
+                        className="py-1.5 px-3 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                    >
+                        <FaRedo size={11} />
+                        <span>{reordenando ? "Agregando..." : "Volver a pedir"}</span>
+                    </button>
+                )}
             </div>
+
         </div>
     );
 }

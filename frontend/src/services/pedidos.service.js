@@ -10,3 +10,8 @@ export const cambiarEstadoPedido = (id, estado, metodoPago) =>
         estado,
         ...(metodoPago ? { metodoPago } : {})
     });
+
+// Extender el plazo de retiro de un pedido
+export const extenderPlazoPedido = (id) =>
+    api.put(`/pedidos/${id}/extender`);
+

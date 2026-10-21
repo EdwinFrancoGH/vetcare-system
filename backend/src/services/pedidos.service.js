@@ -226,3 +226,53 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCa
         return { pedido: { id, ...pedido, ...actualizacion } };
     });
 };
+
+// Extender el plazo de retiro de un pedido pendiente o listo sin pagar
+export const extenderPlazo = async (id) => {
+    return await db.runTransaction(async (transaction) => {
+        const pedidoRef = db.collection("pedidos").doc(id);
+        const pedidoDoc = await transaction.get(pedidoRef);
+
+        if (!pedidoDoc.exists) {
+            throw new Error("PEDIDO_NO_ENCONTRADO");
+        }
+
+        const pedido = pedidoDoc.data();
+        const esValido = pedido.tipo === "retiro"
+            && !pedido.pagado
+            && (pedido.estado === "pendiente" || pedido.estado === "listo");
+
+        if (!esValido) {
+            throw new Error("NO_EXTENDIBLE");
+        }
+
+        const extensionesActuales = Number(pedido.extensiones || 0);
+        if (extensionesActuales >= 3) {
+            throw new Error("LIMITE_EXTENSIONES");
+        }
+
+        const baseMs = pedido.fechaLimite
+            ? new Date(pedido.fechaLimite).getTime()
+            : new Date(pedido.fechaPedido).getTime() + DIAS_PARA_RETIRAR * 24 * 60 * 60 * 1000;
+
+        const baseMayorMs = Math.max(baseMs, Date.now());
+        const dosDiasMs = 2 * 24 * 60 * 60 * 1000;
+        const nuevaFechaLimite = new Date(baseMayorMs + dosDiasMs).toISOString();
+        const ahora = new Date().toISOString();
+
+        const actualizacion = {
+            fechaLimite: nuevaFechaLimite,
+            extensiones: extensionesActuales + 1,
+            fechaActualizacion: ahora
+        };
+
+        transaction.update(pedidoRef, actualizacion);
+
+        return {
+            id,
+            ...pedido,
+            ...actualizacion
+        };
+    });
+};
+

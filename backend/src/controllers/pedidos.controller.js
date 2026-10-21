@@ -1,7 +1,8 @@
 import {
     obtenerTodos as obtenerTodosPedidos,
     cambiarEstado as cambiarEstadoService,
-    vencerPedidosAntiguos
+    vencerPedidosAntiguos,
+    extenderPlazo
 } from "../services/pedidos.service.js";
 import { enviarFacturaVenta } from "../utils/mailer.js";
 
@@ -92,3 +93,47 @@ export const actualizarEstadoPedido = async (req, res) => {
         });
     }
 };
+
+// Extender el plazo de retiro de un pedido (personal)
+export const extenderPlazoPedido = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pedido = await extenderPlazo(id);
+
+        return res.status(200).json({
+            ok: true,
+            message: "Plazo del pedido extendido correctamente.",
+            data: pedido
+        });
+    } catch (error) {
+        if (error.message === "PEDIDO_NO_ENCONTRADO") {
+            return res.status(404).json({
+                ok: false,
+                message: "Pedido no encontrado."
+            });
+        }
+
+        if (error.message === "NO_EXTENDIBLE") {
+            return res.status(400).json({
+                ok: false,
+                message:
+                    "Solo se puede extender el plazo de pedidos de retiro " +
+                    "pendientes o listos y sin pagar."
+            });
+        }
+
+        if (error.message === "LIMITE_EXTENSIONES") {
+            return res.status(400).json({
+                ok: false,
+                message: "Este pedido ya alcanzó el máximo de 3 extensiones."
+            });
+        }
+
+        return res.status(500).json({
+            ok: false,
+            message: "Error al extender el plazo del pedido.",
+            error: error.message
+        });
+    }
+};
+

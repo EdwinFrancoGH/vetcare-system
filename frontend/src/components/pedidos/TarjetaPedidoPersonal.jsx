@@ -15,6 +15,7 @@ export default function TarjetaPedidoPersonal({
     onMarcarListo,
     onEntregar,
     onCancelar,
+    onExtender,
     procesando = false
 }) {
     const idCorto = (pedido.id || "").slice(0, 6).toUpperCase();
@@ -30,6 +31,9 @@ export default function TarjetaPedidoPersonal({
         && fechaLimite;
     const fechaLimiteTexto = mostrarRetiro ? formatearFechaPedido(fechaLimite) : "";
     const vencePronto = mostrarRetiro ? esVencimientoProximo(fechaLimite) : false;
+    const extensiones = Number(pedido.extensiones || 0);
+    const extensionesTexto = extensiones === 1 ? "1 vez" : `${extensiones} veces`;
+
 
     return (
         <div className="bg-white rounded-xl border border-zinc-200 shadow-sm p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition">
@@ -70,11 +74,16 @@ export default function TarjetaPedidoPersonal({
 
                     {/* Plazo de retiro para pedidos pendientes o listos */}
                     {mostrarRetiro && (
-                        <div className={`text-xs flex items-center gap-1.5 mt-1.5 ${
+                        <div className={`text-xs flex items-center flex-wrap gap-1.5 mt-1.5 ${
                             vencePronto ? "text-red-600 font-semibold" : "text-zinc-500"
                         }`}>
                             <FaClock size={11} />
                             <span>Retirar antes del {fechaLimiteTexto}</span>
+                            {extensiones > 0 && (
+                                <span className="text-zinc-400 font-normal">
+                                    (plazo extendido {extensionesTexto})
+                                </span>
+                            )}
                         </div>
                     )}
 
@@ -132,9 +141,11 @@ export default function TarjetaPedidoPersonal({
                     onMarcarListo={onMarcarListo}
                     onEntregar={onEntregar}
                     onCancelar={onCancelar}
+                    onExtender={onExtender}
                     procesando={procesando}
                 />
             </div>
         </div>
     );
 }
+

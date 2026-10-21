@@ -1,6 +1,6 @@
 "use client";
 
-import { FaCheck, FaBan, FaCheckDouble, FaCheckCircle } from "react-icons/fa";
+import { FaCheck, FaBan, FaCheckDouble, FaCheckCircle, FaClock } from "react-icons/fa";
 
 // Botones de acción contextuales según el estado del pedido
 export default function AccionesPedido({
@@ -8,6 +8,7 @@ export default function AccionesPedido({
     onMarcarListo,
     onEntregar,
     onCancelar,
+    onExtender,
     procesando = false
 }) {
     const estado = pedido.estado;
@@ -24,6 +25,10 @@ export default function AccionesPedido({
     if (estado === "cancelado") {
         return null;
     }
+
+    const puedeExtender = pedido.tipo === "retiro"
+        && !pedido.pagado
+        && (estado === "pendiente" || estado === "listo");
 
     return (
         <div className="flex flex-wrap items-center gap-2">
@@ -51,6 +56,18 @@ export default function AccionesPedido({
                 </button>
             )}
 
+            {puedeExtender && onExtender && (
+                <button
+                    type="button"
+                    onClick={() => onExtender(pedido)}
+                    disabled={procesando}
+                    className="py-1.5 px-3 bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition disabled:opacity-50"
+                >
+                    <FaClock size={11} />
+                    <span>Dar más tiempo</span>
+                </button>
+            )}
+
             <button
                 type="button"
                 onClick={() => onCancelar(pedido)}
@@ -63,3 +80,4 @@ export default function AccionesPedido({
         </div>
     );
 }
+
