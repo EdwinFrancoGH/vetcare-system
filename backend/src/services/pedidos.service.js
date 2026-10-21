@@ -1,5 +1,7 @@
 import db from "../config/firebase.js";
 
+export const DIAS_PARA_RETIRAR = 3;
+
 const TRANSICIONES_VALIDAS = {
     pendiente: ["listo", "cancelado"],
     listo: ["entregado", "cancelado"]
@@ -37,7 +39,9 @@ export const crearPedido = async (datos) => {
             const precio = Number(producto.precio || 0);
 
             if (cantidad > stockActual) {
-                throw new Error(`STOCK_INSUFICIENTE:${producto.nombre || productoId}:${stockActual}`);
+                throw new Error(
+                    `STOCK_INSUFICIENTE:${producto.nombre || productoId}:${stockActual}`
+                );
             }
 
             const subtotal = Number((precio * cantidad).toFixed(2));
@@ -64,6 +68,10 @@ export const crearPedido = async (datos) => {
         const ahora = new Date().toISOString();
         const pedidoRef = db.collection("pedidos").doc();
 
+        const limiteRetiro = tipo === "retiro"
+            ? new Date(Date.now() + DIAS_PARA_RETIRAR * 24 * 60 * 60 * 1000).toISOString()
+            : null;
+
         const pedido = {
             clienteUid,
             clienteNombre: clienteNombre || "Cliente",
@@ -75,7 +83,8 @@ export const crearPedido = async (datos) => {
             pagado: esEnLinea,
             metodoPago: esEnLinea ? "En línea (prueba)" : "Pendiente",
             fechaPedido: ahora,
-            fechaActualizacion: ahora
+            fechaActualizacion: ahora,
+            ...(limiteRetiro ? { fechaLimite: limiteRetiro } : {})
         };
 
         transaction.set(pedidoRef, pedido);
@@ -85,21 +94,16 @@ export const crearPedido = async (datos) => {
 
 // Obtener pedidos de un cliente específico
 export const obtenerPorCliente = async (clienteUid) => {
-    const snapshot = await db.collection("pedidos")
-        .where("clienteUid", "==", clienteUid)
-        .get();
-
-    return ordenarRecientes(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    const snap = await db.collection("pedidos").where("clienteUid", "==", clienteUid).get();
+    return ordenarRecientes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 };
 
 // Obtener todos los pedidos con filtro opcional por estado
 export const obtenerTodos = async (filtroEstado) => {
-    let query = db.collection("pedidos");
-    if (filtroEstado) {
-        query = query.where("estado", "==", filtroEstado);
-    }
-    const snapshot = await query.get();
-    return ordenarRecientes(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    const ref = db.collection("pedidos");
+    const query = filtroEstado ? ref.where("estado", "==", filtroEstado) : ref;
+    const snap = await query.get();
+    return ordenarRecientes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 };
 
 // Obtener un pedido por su ID
@@ -108,8 +112,33 @@ export const obtenerPorId = async (id) => {
     return doc.exists ? { id: doc.id, ...doc.data() } : null;
 };
 
+// Cancela pedidos de retiro vencidos no pagados devolviendo su inventario
+export const vencerPedidosAntiguos = async () => {
+    const snapshot = await db.collection("pedidos").where("tipo", "==", "retiro").get();
+    const ahoraMs = Date.now();
+    const plazoMs = DIAS_PARA_RETIRAR * 24 * 60 * 60 * 1000;
+
+    for (const doc of snapshot.docs) {
+        const p = doc.data();
+        if (p.tipo !== "retiro" || p.pagado === true) continue;
+        if (p.estado !== "pendiente" && p.estado !== "listo") continue;
+
+        const limiteMs = p.fechaLimite
+            ? new Date(p.fechaLimite).getTime()
+            : new Date(p.fechaPedido).getTime() + plazoMs;
+
+        if (Number.isNaN(limiteMs) || limiteMs >= ahoraMs) continue;
+
+        try {
+            await cambiarEstado(doc.id, "cancelado", null, "Vencido: no se retiró a tiempo");
+        } catch (error) {
+            console.error(`Error al vencer pedido ${doc.id}:`, error.message);
+        }
+    }
+};
+
 // Cambiar estado del pedido controlando transiciones, inventario y registro de venta
-export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega) => {
+export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCancelacion) => {
     return await db.runTransaction(async (transaction) => {
         const pedidoRef = db.collection("pedidos").doc(id);
         const pedidoDoc = await transaction.get(pedidoRef);
@@ -146,7 +175,11 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega) => {
                     fechaActualizacion: ahora
                 });
             }
-            const actualizacion = { estado: "cancelado", fechaActualizacion: ahora };
+            const actualizacion = {
+                estado: "cancelado",
+                fechaActualizacion: ahora,
+                ...(motivoCancelacion ? { motivoCancelacion } : {})
+            };
             transaction.update(pedidoRef, actualizacion);
             return { pedido: { id, ...pedido, ...actualizacion } };
         }
@@ -185,7 +218,10 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega) => {
             };
         }
 
-        const actualizacion = { estado: "listo", fechaActualizacion: ahora };
+        const actualizacion = {
+            estado: "listo",
+            fechaActualizacion: ahora
+        };
         transaction.update(pedidoRef, actualizacion);
         return { pedido: { id, ...pedido, ...actualizacion } };
     });

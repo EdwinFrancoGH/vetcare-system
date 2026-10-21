@@ -1,12 +1,19 @@
 import {
     obtenerTodos as obtenerTodosPedidos,
-    cambiarEstado as cambiarEstadoService
+    cambiarEstado as cambiarEstadoService,
+    vencerPedidosAntiguos
 } from "../services/pedidos.service.js";
 import { enviarFacturaVenta } from "../utils/mailer.js";
 
 // Listar todos los pedidos con filtro opcional por estado
 export const obtenerPedidos = async (req, res) => {
     try {
+        try {
+            await vencerPedidosAntiguos();
+        } catch (errorVencimiento) {
+            console.error("Error al vencer pedidos antiguos:", errorVencimiento.message);
+        }
+
         const { estado } = req.query;
         const pedidos = await obtenerTodosPedidos(estado);
 
@@ -28,7 +35,7 @@ export const obtenerPedidos = async (req, res) => {
 export const actualizarEstadoPedido = async (req, res) => {
     try {
         const { id } = req.params;
-        const { estado, metodoPago } = req.body;
+        const { estado, metodoPago, motivoCancelacion } = req.body;
 
         if (!estado) {
             return res.status(400).json({
@@ -37,7 +44,11 @@ export const actualizarEstadoPedido = async (req, res) => {
             });
         }
 
-        const resultado = await cambiarEstadoService(id, estado, metodoPago);
+        const motivo = estado === "cancelado"
+            ? (motivoCancelacion || "Cancelado por la clínica")
+            : null;
+
+        const resultado = await cambiarEstadoService(id, estado, metodoPago, motivo);
 
         let facturaEnviada;
         let facturaMotivo;

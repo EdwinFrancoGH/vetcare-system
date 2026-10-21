@@ -3,7 +3,8 @@ import {
     crearPedido as crearPedidoService,
     obtenerPorCliente,
     obtenerPorId,
-    cambiarEstado
+    cambiarEstado,
+    vencerPedidosAntiguos
 } from "../services/pedidos.service.js";
 import { validarPedido } from "../validators/pedido.validator.js";
 
@@ -102,6 +103,12 @@ export const crearPedido = async (req, res) => {
 // Obtener pedidos del cliente autenticado
 export const obtenerMisPedidos = async (req, res) => {
     try {
+        try {
+            await vencerPedidosAntiguos();
+        } catch (errorVencimiento) {
+            console.error("Error al vencer pedidos antiguos:", errorVencimiento.message);
+        }
+
         const pedidos = await obtenerPorCliente(req.user.uid);
 
         return res.status(200).json({
@@ -138,7 +145,12 @@ export const cancelarMiPedido = async (req, res) => {
             });
         }
 
-        const resultado = await cambiarEstado(id, "cancelado");
+        const resultado = await cambiarEstado(
+            id,
+            "cancelado",
+            null,
+            "Cancelado por el cliente"
+        );
 
         return res.status(200).json({
             ok: true,
