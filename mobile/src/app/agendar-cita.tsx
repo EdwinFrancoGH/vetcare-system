@@ -18,6 +18,10 @@ import { API_URL } from '@/config/api';
 
 export default function AgendarCita() {
   const router = useRouter();
+  const regresar = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/citas');
+  };
 
   const [mascotas, setMascotas] = useState<any[]>([]);
   const [disponibles, setDisponibles] = useState<any[]>([]);
@@ -27,9 +31,22 @@ export default function AgendarCita() {
   const [fecha, setFecha] = useState('');
   const [hora, setHora] = useState('');
   const [motivo, setMotivo] = useState('');
+  const [motivoSeleccionado, setMotivoSeleccionado] = useState('');
+  const motivos = ['Consulta general', 'Vacunación', 'Desparasitación', 'Seguimiento', 'Emergencia', 'Otro'];
 
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState('');
+
+  const fechaHoraLocalActual = () => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/El_Salvador', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date());
+    const value = (type: string) => parts.find((part) => part.type === type)?.value || '';
+    return `${value('year')}-${value('month')}-${value('day')} ${value('hour')}:${value('minute')}`;
+  };
+  const horarioEsFuturo = (item: any) => `${item.fecha} ${item.hora}` > fechaHoraLocalActual();
 
   useEffect(() => {
     cargarDatos();
@@ -37,8 +54,10 @@ export default function AgendarCita() {
 
   const cargarDatos = async () => {
     try {
+      setErrorCarga('');
+      setLoading(true);
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) throw new Error('Inicia sesión para consultar horarios.');
 
       const token = await user.getIdToken();
 
@@ -52,12 +71,10 @@ export default function AgendarCita() {
       );
 
       const mascotasData = await mascotasRes.json();
+      if (!mascotasRes.ok) throw new Error(mascotasData.message || 'No se pudieron cargar tus mascotas.');
 
-      setMascotas(
-        mascotasData.mascotas ||
-        mascotasData.data ||
-        []
-      );
+      const mascotasLista = (mascotasData.mascotas || mascotasData.data || []).map((pet: any) => ({ ...pet, id: String(pet.id ?? pet._id ?? '') }));
+      setMascotas(mascotasLista);
 
       const citasRes = await fetch(
         `${API_URL}/api/citas/disponibles`,
@@ -69,16 +86,17 @@ export default function AgendarCita() {
       );
 
       const citasData = await citasRes.json();
+      if (!citasRes.ok) throw new Error(citasData.message || 'No se pudieron cargar los horarios disponibles.');
 
-      setDisponibles(
-        citasData.data || []
-      );
+      setDisponibles((citasData.data || []).filter(horarioEsFuturo));
 
     } catch (error) {
-      console.log('Error cargando datos:', error);
+      const message = error instanceof Error ? error.message : 'No se pudieron cargar los datos.';
+      setErrorCarga(message);
+      console.error('Error cargando datos para agendar:', error);
       Alert.alert(
         'Error',
-        'No se pudieron cargar los datos.'
+        message
       );
     } finally {
       setLoading(false);
@@ -102,12 +120,13 @@ export default function AgendarCita() {
   };
 
   const reservar = async () => {
+    if (guardando) return;
     if (
       !mascotaId ||
       !veterinario ||
       !fecha ||
       !hora ||
-      !motivo.trim()
+      !(motivoSeleccionado === 'Otro' ? motivo.trim() : motivoSeleccionado)
     ) {
       Alert.alert(
         'Datos incompletos',
@@ -137,6 +156,10 @@ export default function AgendarCita() {
           (item) =>
             item.id === mascotaId
         );
+      if (!mascota?.propietario?.trim() || !mascota?.telefono?.trim()) {
+        Alert.alert('Datos del propietario', 'La ficha de esta mascota no tiene nombre y teléfono de contacto. Actualiza sus datos antes de reservar.');
+        return;
+      }
 
       const response =
         await fetch(
@@ -156,15 +179,9 @@ export default function AgendarCita() {
               fecha,
               hora,
               mascotaId,
-              propietario:
-                mascota?.propietario ||
-                user.email ||
-                'Cliente',
-              telefono:
-                mascota?.telefono ||
-                '00000000',
-              motivo:
-                motivo.trim(),
+              propietario: mascota.propietario.trim(),
+              telefono: mascota.telefono.trim(),
+              motivo: motivoSeleccionado === 'Otro' ? motivo.trim() : motivoSeleccionado,
             }),
           }
         );
@@ -187,17 +204,13 @@ export default function AgendarCita() {
         [
           {
             text: 'Aceptar',
-            onPress: () =>
-              router.replace('/citas'),
+            onPress: regresar,
           },
         ]
       );
 
     } catch (error) {
-      console.log(
-        'Error reservando cita:',
-        error
-      );
+      console.error('Error reservando cita:', error);
 
       Alert.alert(
         'Error',
@@ -234,9 +247,11 @@ export default function AgendarCita() {
 
         <View style={styles.header}>
           <Pressable
-            onPress={() =>
-              router.replace('/citas')
-            }
+            style={styles.backButton}
+            onPress={regresar}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a la pantalla anterior"
           >
             <Ionicons
               name="arrow-back"
@@ -250,9 +265,20 @@ export default function AgendarCita() {
           </Text>
         </View>
 
+        {errorCarga ? <View style={styles.emptyPetBox}><Text style={styles.empty}>{errorCarga}</Text><Pressable onPress={cargarDatos}><Text style={styles.retry}>Intentar de nuevo</Text></Pressable></View> : null}
+
         <Text style={styles.label}>
           Mascota
         </Text>
+
+        {mascotas.length === 0 ? (
+          <View style={styles.emptyPetBox}>
+            <Text style={styles.empty}>Primero registra una mascota para poder agendar.</Text>
+            <Pressable style={styles.button} onPress={() => router.push('/agregar-mascota')}>
+              <Text style={styles.buttonText}>Registrar mascota</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View>
           {mascotas.map(
@@ -294,7 +320,7 @@ export default function AgendarCita() {
             No hay horarios disponibles.
           </Text>
         ) : (
-          disponibles
+          disponibles.filter(horarioEsFuturo)
             .slice(0, 30)
             .map((item, index) => (
               <Pressable
@@ -334,12 +360,21 @@ export default function AgendarCita() {
           Motivo de la consulta
         </Text>
 
-        <TextInput
+        <View style={styles.motivosContainer}>
+          {motivos.map((item) => (
+            <Pressable key={item} style={[styles.option, motivoSeleccionado === item && styles.selected]} onPress={() => { setMotivoSeleccionado(item); setMotivo(''); }}>
+              <Text>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {motivoSeleccionado === 'Otro' ? <TextInput
           style={styles.input}
-          placeholder="Ej. Consulta general"
+          placeholder="Describe el motivo"
           value={motivo}
           onChangeText={setMotivo}
-        />
+          multiline
+        /> : null}
 
         <Pressable
           style={[
@@ -348,7 +383,7 @@ export default function AgendarCita() {
               styles.buttonDisabled,
           ]}
           onPress={reservar}
-          disabled={guardando}
+          disabled={guardando || mascotas.length === 0}
         >
           {guardando ? (
             <ActivityIndicator
@@ -385,6 +420,7 @@ const styles = StyleSheet.create({
     marginBottom: 25,
     gap: 15,
   },
+  backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#FFFFFF' },
 
   title: {
     fontSize: 27,
@@ -436,6 +472,9 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 10,
   },
+  emptyPetBox: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E5E7EB' },
+  retry: { color: '#6D28D9', fontWeight: '700', marginTop: 8 },
+  motivosContainer: { gap: 4 },
 
   input: {
     backgroundColor: '#FFFFFF',

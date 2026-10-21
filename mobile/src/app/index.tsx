@@ -39,7 +39,7 @@ export default function LoginScreen() {
       return;
     }
 
-    if (!email.includes('@')) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Ingresa un correo electrónico válido.');
       return;
     }
@@ -47,46 +47,15 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      console.log('================================');
-      console.log('1. INICIANDO LOGIN');
-      console.log('================================');
-
-      console.log('Correo:', email.trim());
-
-      // ==========================================
-      // 1. AUTENTICACIÓN CON FIREBASE
-      // ==========================================
-
-      console.log('2. Intentando autenticar con Firebase...');
-
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email.trim(),
         password
       );
 
-      console.log('3. Firebase respondió correctamente');
-      console.log('Usuario:', userCredential.user.email);
-      console.log('UID:', userCredential.user.uid);
-
-      // ==========================================
-      // 2. OBTENER TOKEN DE FIREBASE
-      // ==========================================
-
-      console.log('4. Obteniendo token de Firebase...');
-
       const token = await userCredential.user.getIdToken();
 
-      console.log('5. Token obtenido correctamente');
-
-      // ==========================================
-      // 3. CONECTAR CON BACKEND
-      // ==========================================
-
       const url = `${API_URL}/api/auth/sync`;
-
-      console.log('6. URL del backend:', url);
-      console.log('7. Enviando petición al backend...');
 
       const response = await fetch(url, {
         method: 'POST',
@@ -101,21 +70,7 @@ export default function LoginScreen() {
         }),
       });
 
-      console.log(
-        '8. Backend respondió con status:',
-        response.status
-      );
-
-      // ==========================================
-      // 4. LEER RESPUESTA DEL BACKEND
-      // ==========================================
-
       const responseText = await response.text();
-
-      console.log(
-        '9. Respuesta cruda del backend:',
-        responseText
-      );
 
       let data: any = {};
 
@@ -127,15 +82,6 @@ export default function LoginScreen() {
         );
       }
 
-      console.log(
-        '10. Respuesta JSON del backend:',
-        data
-      );
-
-      // ==========================================
-      // 5. VALIDAR RESPUESTA
-      // ==========================================
-
       if (!response.ok) {
         throw new Error(
           data.message ||
@@ -144,37 +90,12 @@ export default function LoginScreen() {
         );
       }
 
-      console.log('================================');
-      console.log('11. LOGIN COMPLETADO CORRECTAMENTE');
-      console.log('================================');
-
-      console.log(
-        'Usuario sincronizado correctamente'
-      );
       setError('');
 
       router.replace('/home');
 
-      // ==========================================
-      // 6. SIGUIENTE PASO
-      // ==========================================
-      //
-      // Aquí posteriormente navegaremos al Home.
-      //
-      // Por ahora dejamos el usuario en esta pantalla
-      // para comprobar completamente la autenticación.
-      //
-
-      setError('');
-
     } catch (error: any) {
-      console.error('================================');
-      console.error('ERROR DURANTE LOGIN');
-      console.error('================================');
-
-      console.error('Error completo:', error);
-      console.error('Código:', error?.code);
-      console.error('Mensaje:', error?.message);
+      console.error('Error durante el inicio de sesión:', error?.code || 'backend');
 
       // ==========================================
       // ERRORES DE FIREBASE AUTHENTICATION
@@ -374,11 +295,7 @@ export default function LoginScreen() {
             {/* RECUPERAR CONTRASEÑA */}
 
             <Pressable
-              onPress={() =>
-                console.log(
-                  'Recuperar contraseña'
-                )
-              }
+              onPress={() => router.push('/recuperar' as never)}
               style={styles.forgotButton}
             >
 
@@ -434,11 +351,7 @@ export default function LoginScreen() {
               </Text>
 
               <Pressable
-                onPress={() =>
-                  console.log(
-                    'Ir a registro'
-                  )
-                }
+                onPress={() => router.push('/registro' as never)}
               >
 
                 <Text style={styles.registerLink}>

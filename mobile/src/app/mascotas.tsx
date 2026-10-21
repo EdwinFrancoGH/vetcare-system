@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+﻿import React, { useCallback, useState } from 'react';
 
 import {
   SafeAreaView,
@@ -7,7 +7,6 @@ import {
   View,
   Pressable,
   ScrollView,
-  Image,
   ActivityIndicator,
 } from 'react-native';
 
@@ -16,6 +15,8 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { auth } from '@/config/firebase';
 import { API_URL } from '@/config/api';
+import { PetImage } from '@/components/pet-image';
+import { calculatePetAge } from '@/utils/pet-date';
 
 const colors = Colors.light;
 
@@ -56,18 +57,9 @@ export default function MascotasScreen() {
         return;
       }
 
-      console.log('================================');
-      console.log('CARGANDO MASCOTAS');
-      console.log('================================');
-      console.log('Usuario:', user.email);
-      console.log('UID:', user.uid);
-
       const token = await user.getIdToken();
 
       const url = `${API_URL}/api/mascotas`;
-
-      console.log('URL:', url);
-      console.log('Consultando mascotas...');
 
       const response = await fetch(url, {
         method: 'GET',
@@ -77,21 +69,7 @@ export default function MascotasScreen() {
         },
       });
 
-      console.log('Status:', response.status);
-
-      const responseText = await response.text();
-
-      console.log('Respuesta:', responseText);
-
-      let data: any = {};
-
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        throw new Error(
-          `El servidor respondió algo que no es JSON. Status: ${response.status}`
-        );
-      }
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
@@ -101,20 +79,11 @@ export default function MascotasScreen() {
         );
       }
 
-      setMascotas(data.data || []);
-
-      console.log(
-        'Mascotas obtenidas:',
-        (data.data || []).length
-      );
-
-      console.log('================================');
+      setMascotas((data.data || data.mascotas || []).map((pet: any) => ({
+        ...pet, id: String(pet.id ?? pet._id ?? pet.mascotaId ?? ''),
+      })).filter((pet: Mascota) => pet.id));
     } catch (error: any) {
-      console.error('================================');
-      console.error('ERROR AL CARGAR MASCOTAS');
-      console.error('================================');
-      console.error('Error completo:', error);
-      console.error('Mensaje:', error?.message);
+      console.error('Error cargando mascotas:', error);
 
       setError(
         error?.message || 'No se pudieron cargar las mascotas.'
@@ -129,22 +98,6 @@ export default function MascotasScreen() {
       cargarMascotas();
     }, [])
   );
-
-  const obtenerImagen = (mascota: Mascota) => {
-    if (mascota.foto) {
-      return mascota.foto;
-    }
-
-    if (mascota.imagen) {
-      return mascota.imagen;
-    }
-
-    if (mascota.especie?.toLowerCase() === 'gato') {
-      return 'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=300';
-    }
-
-    return 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=300';
-  };
 
   const formatearSexo = (sexo: string) => {
     if (!sexo) return '';
@@ -175,7 +128,6 @@ export default function MascotasScreen() {
           <Pressable
             style={styles.addButton}
             onPress={() => {
-              console.log('ABRIENDO AGREGAR MASCOTA');
               router.push('/agregar-mascota');
             }}
             hitSlop={12}
@@ -298,12 +250,7 @@ export default function MascotasScreen() {
               >
 
                 <View style={styles.petImageContainer}>
-                  <Image
-                    source={{
-                      uri: obtenerImagen(mascota),
-                    }}
-                    style={styles.petImage}
-                  />
+                  <PetImage species={mascota.especie} photoUri={mascota.foto || mascota.imagen} style={styles.petImage} accessibilityLabel={`${mascota.nombre}, ${mascota.especie}`} />
                 </View>
 
                 <View style={styles.petInfo}>
@@ -317,7 +264,7 @@ export default function MascotasScreen() {
                   </Text>
 
                   <Text style={styles.petDetails}>
-                    {mascota.edad} años •{' '}
+                    {calculatePetAge(mascota.fechaNacimiento ?? '') ?? (Number.isFinite(mascota.edad) ? Math.max(0, Math.floor(mascota.edad)) : 0)} años •{' '}
                     {formatearSexo(mascota.sexo)} •{' '}
                     {mascota.peso} kg
                   </Text>
@@ -364,7 +311,6 @@ export default function MascotasScreen() {
           <Pressable
             style={styles.navItem}
             onPress={() => {
-              console.log('ABRIENDO INICIO DESDE MASCOTAS');
               router.replace('/home');
             }}
             hitSlop={12}
@@ -400,7 +346,6 @@ export default function MascotasScreen() {
           <Pressable
             style={styles.navItem}
             onPress={() => {
-              console.log('ABRIENDO CITAS DESDE MASCOTAS');
               router.push('/citas');
             }}
             hitSlop={12}
@@ -420,7 +365,6 @@ export default function MascotasScreen() {
           <Pressable
             style={styles.navItem}
             onPress={() => {
-              console.log('ABRIENDO PERFIL DESDE MASCOTAS');
               router.push('/explore');
             }}
             hitSlop={12}

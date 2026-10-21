@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,8 @@ import { Colors } from '@/constants/theme';
 
 import { auth } from '@/config/firebase';
 import { API_URL } from '@/config/api';
+import { PetImage } from '@/components/pet-image';
+import { calculatePetAge, parsePetDate } from '@/utils/pet-date';
 
 const colors = Colors.light;
 
@@ -80,6 +83,26 @@ export default function DetalleMascotaScreen() {
 
   const [error, setError] = useState('');
   const [errorSalud, setErrorSalud] = useState('');
+  const [eliminando, setEliminando] = useState(false);
+
+  const eliminarMascota = async () => {
+    if (eliminando || !mascota) return;
+    setEliminando(true);
+    try {
+      const usuario = auth.currentUser;
+      if (!usuario) throw new Error('No hay una sesión activa.');
+      const token = await usuario.getIdToken();
+      const response = await fetch(`${API_URL}/api/mascotas/${encodeURIComponent(String(id))}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'No se pudo eliminar la mascota.');
+      setMascota(null); setHistoriales([]); setVacunas([]);
+      router.replace('/mascotas');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'No se pudo eliminar la mascota.');
+    } finally { setEliminando(false); }
+  };
 
   useEffect(() => {
     cargarMascota();
@@ -116,11 +139,6 @@ export default function DetalleMascotaScreen() {
       );
 
       const data = await response.json();
-
-      console.log(
-        'RESPUESTA DETALLE MASCOTA:',
-        JSON.stringify(data, null, 2)
-      );
 
       if (!response.ok) {
         throw new Error(
@@ -181,11 +199,6 @@ export default function DetalleMascotaScreen() {
 
       const historialData = await historialResponse.json();
 
-      console.log(
-        'RESPUESTA HISTORIAL:',
-        JSON.stringify(historialData, null, 2)
-      );
-
       if (!historialResponse.ok) {
         throw new Error(
           historialData?.mensaje ||
@@ -208,11 +221,6 @@ export default function DetalleMascotaScreen() {
       );
 
       const vacunasData = await vacunasResponse.json();
-
-      console.log(
-        'RESPUESTA VACUNAS:',
-        JSON.stringify(vacunasData, null, 2)
-      );
 
       if (!vacunasResponse.ok) {
         throw new Error(
@@ -264,9 +272,9 @@ export default function DetalleMascotaScreen() {
     }
 
     try {
-      const fechaObj = new Date(fecha);
+      const fechaObj = parsePetDate(fecha);
 
-      if (Number.isNaN(fechaObj.getTime())) {
+      if (!fechaObj || Number.isNaN(fechaObj.getTime())) {
         return fecha;
       }
 
@@ -396,7 +404,6 @@ export default function DetalleMascotaScreen() {
             <Pressable
               style={styles.roundButton}
               onPress={() => {
-                console.log('REGRESANDO A MASCOTAS');
                 router.replace('/mascotas');
               }}
             >
@@ -411,7 +418,7 @@ export default function DetalleMascotaScreen() {
 
             <Pressable
               style={styles.roundButton}
-              onPress={() => console.log('Editar mascota')}
+              onPress={() => router.push(`/agregar-mascota?id=${encodeURIComponent(String(id))}`)}
             >
               <Ionicons
                 name="create-outline"
@@ -422,11 +429,24 @@ export default function DetalleMascotaScreen() {
 
           </View>
 
+          <Pressable
+            disabled={eliminando}
+            style={{ marginTop: 18, padding: 14, borderRadius: 12, backgroundColor: '#FEE2E2', alignItems: 'center', opacity: eliminando ? 0.5 : 1 }}
+            onPress={() => Alert.alert('Eliminar mascota', `¿Deseas eliminar a ${mascota.nombre}?`, [
+              { text: 'No', style: 'cancel' },
+              { text: 'Sí, eliminar', style: 'destructive', onPress: eliminarMascota },
+            ])}
+          >
+            <Text style={{ color: '#DC2626', fontWeight: '700' }}>{eliminando ? 'Eliminando...' : 'Eliminar mascota'}</Text>
+          </Pressable>
+
           {/* =========================================
               INFORMACIÓN PRINCIPAL
           ========================================= */}
 
           <View style={styles.petMainCard}>
+
+            <PetImage species={mascota.especie} photoUri={mascota.foto || mascota.imagen} style={styles.petPhoto} accessibilityLabel={`${mascota.nombre}, ${mascota.especie}`} />
 
             <View style={styles.petMainInfo}>
 
@@ -436,7 +456,7 @@ export default function DetalleMascotaScreen() {
 
               <Text style={styles.petSubtitle}>
                 {valorSeguro(mascota.raza)} •{' '}
-                {formatearEdad(mascota.edad)}
+              {formatearEdad(calculatePetAge(mascota.fechaNacimiento) ?? mascota.edad)}
               </Text>
 
             </View>
@@ -497,7 +517,7 @@ export default function DetalleMascotaScreen() {
 
             <Pressable
               style={styles.tab}
-              onPress={() => console.log('Notas')}
+              onPress={() => Alert.alert('Notas', 'No hay notas disponibles para esta mascota.')}
             >
               <Text style={styles.tabText}>
                 Notas
@@ -535,7 +555,7 @@ export default function DetalleMascotaScreen() {
 
               <InfoRow
                 label="Edad"
-                value={formatearEdad(mascota.edad)}
+                value={formatearEdad(calculatePetAge(mascota.fechaNacimiento) ?? mascota.edad)}
               />
 
               <InfoRow
@@ -820,10 +840,7 @@ export default function DetalleMascotaScreen() {
 
           <Pressable
             style={styles.navItem}
-            onPress={() => {
-              console.log('REGRESANDO A MASCOTAS');
-              router.replace('/mascotas');
-            }}
+              onPress={() => router.replace('/mascotas')}
           >
             <Ionicons
               name="paw"
@@ -840,7 +857,7 @@ export default function DetalleMascotaScreen() {
 
           <Pressable
             style={styles.navItem}
-            onPress={() => console.log('Citas')}
+            onPress={() => router.push('/citas')}
           >
             <Ionicons
               name="calendar-outline"
@@ -1049,7 +1066,11 @@ const styles = StyleSheet.create({
 
   petMainInfo: {
     flex: 1,
+    marginLeft: 12,
   },
+
+  petPhoto: { width: 54, height: 54, borderRadius: 12, backgroundColor: '#EDE9FE' },
+  petPhotoFallback: { width: 54, height: 54, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 
   petName: {
     color: '#1F2937',

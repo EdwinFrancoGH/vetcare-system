@@ -89,10 +89,9 @@ export default function CitasScreen() {
         );
       }
 
-      const mascotasLista: Mascota[] =
-        mascotasData.mascotas ||
-        mascotasData.data ||
-        [];
+      const mascotasLista: Mascota[] = (mascotasData.mascotas || mascotasData.data || [])
+        .map((pet: any) => ({ ...pet, id: String(pet.id ?? pet._id ?? '') }))
+        .filter((pet: Mascota) => pet.id);
 
       setMascotas(mascotasLista);
 
@@ -215,14 +214,7 @@ export default function CitasScreen() {
   };
 
   const abrirDetalle = (cita: Cita) => {
-    console.log('CITA COMPLETA:', JSON.stringify(cita));
-    console.log('ID ENVIADO:', cita.id);
-
     if (!cita.id) {
-      console.error(
-        'La cita no tiene id. Revisa la respuesta del backend:',
-        cita
-      );
       setError(
         'Esta cita no contiene un identificador. Actualiza la lista e inténtalo nuevamente.'
       );
@@ -373,8 +365,14 @@ export default function CitasScreen() {
               Intentar nuevamente
             </Text>
           </Pressable>
-          <Pressable onPress={() => router.replace('/citas')}>
-            <Text style={styles.linkText}>Volver a citas</Text>
+          <Pressable
+            style={styles.retryButton}
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/home')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a la pantalla anterior"
+          >
+            <Text style={styles.retryButtonText}>Regresar</Text>
           </Pressable>
         </View>
       </SafeAreaView>

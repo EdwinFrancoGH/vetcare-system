@@ -1,692 +1,106 @@
-import React from 'react';
-
-import {
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  View,
-  Pressable,
-  ScrollView,
-} from 'react-native';
-
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/theme';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { auth } from '@/config/firebase';
+import { API_URL } from '@/config/api';
 
-const colors = Colors.light;
+type Pet = { id: string; nombre: string };
+type Appointment = { id: string; mascotaId: string; fecha: string; hora: string; veterinario?: string; motivo?: string; estado?: string };
+type Reminder = { nombre: string; fecha: string; mascota: string };
+
+function nowClinicKey() {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/El_Salvador', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+  const v = (type: string) => p.find((x) => x.type === type)?.value || '';
+  return `${v('year')}-${v('month')}-${v('day')} ${v('hour')}:${v('minute')}`;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.screen}>
-
-        {/* =========================================
-            CONTENIDO PRINCIPAL
-        ========================================= */}
-
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-
-          {/* =========================================
-              HEADER
-          ========================================= */}
-
-          <View style={styles.header}>
-
-            <Text style={styles.greeting}>
-              ¡Hola, Ana!
-            </Text>
-
-            <Text style={styles.welcomeText}>
-              Bienvenida de vuelta a VetCare
-            </Text>
-
-          </View>
-
-
-          {/* =========================================
-              TARJETAS DE RESUMEN
-          ========================================= */}
-
-          <View style={styles.summaryContainer}>
-
-            {/* Mascotas */}
-
-            <Pressable
-              style={styles.summaryCard}
-              onPress={() => router.push('/mascotas')}
-              hitSlop={8}
-            >
-
-              <View style={styles.summaryHeader}>
-
-                <Text style={styles.summaryNumber}>
-                  2
-                </Text>
-
-                <Ionicons
-                  name="paw-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-
-              </View>
-
-              <Text style={styles.summaryLabel}>
-                Mis mascotas
-              </Text>
-
-            </Pressable>
-
-
-            {/* Próxima cita */}
-
-            <Pressable
-              style={styles.summaryCard}
-              onPress={() => router.push('/citas')}
-              hitSlop={8}
-            >
-
-              <View style={styles.summaryHeader}>
-
-                <Text style={styles.summaryNumber}>
-                  1
-                </Text>
-
-                <Ionicons
-                  name="calendar-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-
-              </View>
-
-              <Text style={styles.summaryLabel}>
-                Próxima cita
-              </Text>
-
-            </Pressable>
-
-
-            {/* Vacunas */}
-
-            <Pressable
-              style={styles.summaryCard}
-              onPress={() => router.push('/mascotas')}
-              hitSlop={8}
-            >
-
-              <View style={styles.summaryHeader}>
-
-                <Text style={styles.summaryNumber}>
-                  2
-                </Text>
-
-                <Ionicons
-                  name="medkit-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-
-              </View>
-
-              <Text style={styles.summaryLabel}>
-                Vacunas próx.
-              </Text>
-
-            </Pressable>
-
-          </View>
-
-
-          {/* =========================================
-              PRÓXIMA CITA
-          ========================================= */}
-
-          <Text style={styles.sectionTitle}>
-            Próxima cita
-          </Text>
-
-
-          <View style={styles.appointmentCard}>
-
-            {/* Mascota */}
-
-            <View style={styles.petHeader}>
-
-              <View style={styles.petAvatar}>
-
-                <Ionicons
-                  name="paw"
-                  size={26}
-                  color={colors.primary}
-                />
-
-              </View>
-
-
-              <View style={styles.petInfo}>
-
-                <Text style={styles.petName}>
-                  Max
-                </Text>
-
-                <Text style={styles.petService}>
-                  Consulta general
-                </Text>
-
-              </View>
-
-            </View>
-
-
-            {/* Separador */}
-
-            <View style={styles.divider} />
-
-
-            {/* Fecha */}
-
-            <View style={styles.appointmentInfoRow}>
-
-              <Ionicons
-                name="time-outline"
-                size={17}
-                color={colors.primary}
-              />
-
-              <Text style={styles.appointmentInfoText}>
-                22 de Mayo, 2026 - 10:00 AM
-              </Text>
-
-            </View>
-
-
-            {/* Veterinario */}
-
-            <View style={styles.appointmentInfoRow}>
-
-              <Ionicons
-                name="person-outline"
-                size={17}
-                color={colors.primary}
-              />
-
-              <Text style={styles.appointmentInfoText}>
-                Veterinario: Dr. Juan Pérez
-              </Text>
-
-            </View>
-
-
-            {/* Botón */}
-
-            <Pressable
-              style={styles.detailsButton}
-              onPress={() => router.push('/citas')}
-              hitSlop={8}
-            >
-
-              <Text style={styles.detailsButtonText}>
-                Ver detalles
-              </Text>
-
-            </Pressable>
-
-          </View>
-
-
-          {/* =========================================
-              RECORDATORIOS
-          ========================================= */}
-
-          <Text style={styles.sectionTitle}>
-            Recordatorios
-          </Text>
-
-
-          <Pressable
-            style={styles.reminderCard}
-            onPress={() => router.push('/mascotas')}
-            hitSlop={8}
-          >
-
-            <View style={styles.reminderIcon}>
-
-              <Ionicons
-                name="medkit-outline"
-                size={18}
-                color={colors.primary}
-              />
-
-            </View>
-
-
-            <View style={styles.reminderInfo}>
-
-              <Text style={styles.reminderTitle}>
-                Vacuna de la Rabia • Max
-              </Text>
-
-              <Text style={styles.reminderDate}>
-                Vence el 25 de Mayo, 2026
-              </Text>
-
-            </View>
-
-
-            <Ionicons
-              name="chevron-forward"
-              size={19}
-              color="#6B7280"
-            />
-
-          </Pressable>
-
-
-          <View style={styles.bottomSpace} />
-
-        </ScrollView>
-
-
-        {/* =========================================
-            BARRA INFERIOR
-        ========================================= */}
-
-        <View style={styles.bottomNav}>
-
-          {/* Inicio */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => router.replace('/home')}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="home"
-              size={21}
-              color={colors.primary}
-            />
-
-            <Text style={styles.navTextActive}>
-              Inicio
-            </Text>
-
-          </Pressable>
-
-
-          {/* Mascotas */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => {
-              console.log('ABRIENDO MASCOTAS DESDE HOME');
-              router.push('/mascotas');
-            }}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="paw-outline"
-              size={21}
-              color="#9CA3AF"
-            />
-
-            <Text style={styles.navText}>
-              Mascotas
-            </Text>
-
-          </Pressable>
-
-
-          {/* Citas */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => {
-              console.log('ABRIENDO CITAS DESDE HOME');
-              router.push('/citas');
-            }}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="calendar-outline"
-              size={21}
-              color="#9CA3AF"
-            />
-
-            <Text style={styles.navText}>
-              Citas
-            </Text>
-
-          </Pressable>
-
-
-          {/* Perfil */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => {
-              console.log('ABRIENDO PERFIL DESDE HOME');
-              router.push('/explore');
-            }}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="person-outline"
-              size={21}
-              color="#9CA3AF"
-            />
-
-            <Text style={styles.navText}>
-              Perfil
-            </Text>
-
-          </Pressable>
-
+  const insets = useSafeAreaInsets();
+  const [pets, setPets] = useState<Pet[]>([]); const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+
+  const loadDashboard = useCallback(async () => {
+    try {
+      setLoading(true); setError('');
+      const user = auth.currentUser;
+      if (!user) throw new Error('Tu sesión no está activa.');
+      const token = await user.getIdToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const petsResponse = await fetch(`${API_URL}/api/mascotas`, { headers });
+      const petsData = await petsResponse.json();
+      if (!petsResponse.ok) throw new Error(petsData.message || 'No se pudieron cargar tus mascotas.');
+      const petList: Pet[] = (petsData.data || petsData.mascotas || []).map((pet: any) => ({ ...pet, id: String(pet.id ?? pet._id ?? '') })).filter((pet: Pet) => pet.id);
+      setPets(petList);
+      const [appointmentsByPet, remindersByPet] = await Promise.all([
+        Promise.all(petList.map(async (pet) => {
+          const response = await fetch(`${API_URL}/api/citas/mascota/${encodeURIComponent(pet.id)}`, { headers });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'No se pudieron cargar tus citas.');
+          return (data.data || data.citas || []).map((item: any) => ({ ...item, id: String(item.id ?? item._id ?? item.citaId ?? ''), mascotaId: pet.id }));
+        })),
+        Promise.all(petList.map(async (pet) => {
+          const response = await fetch(`${API_URL}/api/vacunas/mascota/${encodeURIComponent(pet.id)}`, { headers });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'No se pudieron cargar los recordatorios de salud.');
+          return (data.data || []).filter((vaccine: any) => vaccine.proximaFecha).map((vaccine: any) => ({ nombre: vaccine.nombre || 'Vacuna', fecha: vaccine.proximaFecha, mascota: pet.nombre }));
+        })),
+      ]);
+      const now = nowClinicKey();
+      const upcoming = appointmentsByPet.flat().filter((item: Appointment) => !['cancelada', 'completada'].includes((item.estado || '').toLowerCase()) && `${item.fecha} ${item.hora}` >= now).sort((a: Appointment, b: Appointment) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`));
+      setAppointments(upcoming);
+      setReminders(remindersByPet.flat().filter((item: Reminder) => item.fecha >= now.slice(0, 10)).sort((a: Reminder, b: Reminder) => a.fecha.localeCompare(b.fecha)));
+    } catch (err: any) { setError(err?.message || 'No se pudo actualizar el inicio.'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadDashboard(); }, [loadDashboard]));
+  const next = appointments[0];
+  const petName = (id?: string) => pets.find((pet) => pet.id === id)?.nombre || 'Mascota';
+  const dateLabel = (date?: string, time?: string) => {
+    if (!date) return '';
+    const [y, m, d] = date.split('-').map(Number);
+    const day = new Date(y, m - 1, d).toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
+    return `${day}${time ? ` · ${time}` : ''}`;
+  };
+
+  return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <View style={styles.screen}>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <View style={styles.greetingRow}>
+        <View style={styles.greetingCopy}>
+          <Text style={styles.greeting}>¡Hola, {auth.currentUser?.displayName?.split(' ')[0] || 'bienvenido'}!</Text>
+          <Text style={styles.subtitle}>Tu espacio de cuidado VetCare</Text>
         </View>
-
+        {auth.currentUser?.photoURL ? <Image source={{ uri: auth.currentUser.photoURL }} style={styles.profilePhoto} /> : <Ionicons name="person-circle-outline" size={54} color="#6D28D9" />}
       </View>
-    </SafeAreaView>
-  );
+      {loading ? <View style={styles.center}><ActivityIndicator size="large" color="#6D28D9" /><Text style={styles.muted}>Actualizando tu información...</Text></View> : error ? <View style={styles.card}><Text style={styles.error}>{error}</Text><Pressable onPress={loadDashboard}><Text style={styles.link}>Intentar de nuevo</Text></Pressable></View> : <>
+        <View style={styles.summaryRow}>
+          <Pressable style={styles.summary} onPress={() => router.push('/mascotas')}><Text style={styles.number}>{pets.length}</Text><Text style={styles.label}>Mis mascotas</Text></Pressable>
+          <Pressable style={styles.summary} onPress={() => router.push('/citas')}><Text style={styles.number}>{appointments.length}</Text><Text style={styles.label}>Próximas citas</Text></Pressable>
+          <Pressable style={styles.summary} onPress={() => router.push('/mascotas')}><Text style={styles.number}>{reminders.length}</Text><Text style={styles.label}>Recordatorios</Text></Pressable>
+        </View>
+        <View style={styles.sectionHeader}><Text style={styles.heading}>Próxima cita</Text><Pressable onPress={() => router.push('/citas')}><Text style={styles.link}>Ver todas</Text></Pressable></View>
+        {next ? <Pressable style={styles.card} onPress={() => next.id && router.push(`/detalle-cita?id=${encodeURIComponent(next.id)}`)}><Text style={styles.cardTitle}>{petName(next.mascotaId)} · {next.motivo || 'Consulta'}</Text><Text style={styles.cardText}>{dateLabel(next.fecha, next.hora)}</Text><Text style={styles.cardText}>Veterinario: {next.veterinario || 'Por asignar'}</Text></Pressable> : <View style={styles.card}><Text style={styles.cardTitle}>Sin citas próximas</Text><Text style={styles.cardText}>Cuando reserves una cita aparecerá aquí.</Text><Pressable onPress={() => router.push('/agendar-cita')}><Text style={styles.link}>Agendar cita</Text></Pressable></View>}
+        <View style={styles.sectionHeader}><Text style={styles.heading}>Recordatorios de salud</Text></View>
+        {reminders.length ? reminders.slice(0, 5).map((item, index) => <View style={styles.card} key={`${item.mascota}-${item.nombre}-${index}`}><Text style={styles.cardTitle}>{item.nombre} · {item.mascota}</Text><Text style={styles.cardText}>Próxima fecha: {dateLabel(item.fecha)}</Text></View>) : <View style={styles.card}><Text style={styles.cardTitle}>Sin recordatorios disponibles</Text><Text style={styles.cardText}>Aún no hay próximas vacunas registradas.</Text></View>}
+      </>}
+    </ScrollView>
+    <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ir a mascotas" style={styles.navItem} onPress={() => router.replace('/mascotas')}>
+        <Ionicons name="paw-outline" size={22} color="#6D28D9" /><Text style={styles.navLabel}>Mascotas</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ir a citas" style={styles.navItem} onPress={() => router.replace('/citas')}>
+        <Ionicons name="calendar-outline" size={22} color="#6D28D9" /><Text style={styles.navLabel}>Citas</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ir al perfil" style={styles.navItem} onPress={() => router.replace('/explore')}>
+        <Ionicons name="person-outline" size={22} color="#6D28D9" /><Text style={styles.navLabel}>Perfil</Text>
+      </Pressable>
+    </View>
+    </View>
+  </SafeAreaView>;
 }
 
-
-/* =====================================================
-   ESTILOS
-===================================================== */
-
-const styles = StyleSheet.create({
-
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F6F8',
-  },
-
-  screen: {
-    flex: 1,
-    backgroundColor: '#F5F6F8',
-  },
-
-  scroll: {
-    flex: 1,
-  },
-
-  content: {
-    paddingBottom: 10,
-  },
-
-
-  /* =========================================
-     HEADER
-  ========================================= */
-
-  header: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingTop: 17,
-    paddingBottom: 19,
-  },
-
-  greeting: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 3,
-  },
-
-  welcomeText: {
-    color: '#E9D5FF',
-    fontSize: 12.5,
-  },
-
-
-  /* =========================================
-     RESUMEN
-  ========================================= */
-
-  summaryContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginTop: 12,
-  },
-
-  summaryCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    minHeight: 65,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-
-  summaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 3,
-  },
-
-  summaryNumber: {
-    color: colors.primary,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-
-  summaryLabel: {
-    color: '#374151',
-    fontSize: 10.5,
-    fontWeight: '500',
-  },
-
-
-  /* =========================================
-     TÍTULOS
-  ========================================= */
-
-  sectionTitle: {
-    color: '#1F2937',
-    fontSize: 15,
-    fontWeight: '700',
-    marginHorizontal: 24,
-    marginTop: 14,
-    marginBottom: 8,
-  },
-
-
-  /* =========================================
-     CITA
-  ========================================= */
-
-  appointmentCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 24,
-    borderRadius: 11,
-    padding: 12,
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-
-  petHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  petAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#EDE9FE',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 11,
-  },
-
-  petInfo: {
-    flex: 1,
-  },
-
-  petName: {
-    color: '#1F2937',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-
-  petService: {
-    color: '#6B7280',
-    fontSize: 11.5,
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginVertical: 9,
-  },
-
-  appointmentInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-
-  appointmentInfoText: {
-    color: '#4B5563',
-    fontSize: 11.5,
-    marginLeft: 7,
-  },
-
-  detailsButton: {
-    height: 27,
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-
-  detailsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-
-
-  /* =========================================
-     RECORDATORIOS
-  ========================================= */
-
-  reminderCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 24,
-    minHeight: 53,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-
-    flexDirection: 'row',
-    alignItems: 'center',
-
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-
-  reminderIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: '#EDE9FE',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 9,
-  },
-
-  reminderInfo: {
-    flex: 1,
-  },
-
-  reminderTitle: {
-    color: '#374151',
-    fontSize: 11.5,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-
-  reminderDate: {
-    color: '#6B7280',
-    fontSize: 9.5,
-  },
-
-  bottomSpace: {
-    height: 20,
-  },
-
-
-  /* =========================================
-     BARRA INFERIOR
-  ========================================= */
-
-  bottomNav: {
-    height: 68,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-
-    paddingBottom: 4,
-  },
-
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  navText: {
-    color: '#6B7280',
-    fontSize: 10,
-    marginTop: 3,
-  },
-
-  navTextActive: {
-    color: colors.primary,
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 3,
-  },
-
-});
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: '#F5F6F8' }, screen: { flex: 1 }, scroll: { flex: 1 }, content: { padding: 22, paddingBottom: 24 }, greetingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, greetingCopy: { flex: 1, paddingRight: 10 }, greeting: { fontSize: 28, fontWeight: '700', color: '#1F2937' }, subtitle: { color: '#6B7280', fontSize: 15, marginTop: 5 }, profilePhoto: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#EDE9FE' }, center: { alignItems: 'center', padding: 30, gap: 12 }, muted: { color: '#6B7280' }, summaryRow: { flexDirection: 'row', gap: 9, marginBottom: 24 }, summary: { flex: 1, backgroundColor: '#fff', borderRadius: 14, padding: 12, minHeight: 92, justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' }, number: { fontSize: 24, fontWeight: '700', color: '#6D28D9' }, label: { fontSize: 12, color: '#4B5563', marginTop: 4 }, sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 8 }, heading: { fontSize: 19, fontWeight: '700', color: '#1F2937' }, card: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', padding: 16, marginBottom: 10, gap: 6 }, cardTitle: { color: '#1F2937', fontSize: 16, fontWeight: '700' }, cardText: { color: '#6B7280', fontSize: 14 }, link: { color: '#6D28D9', fontWeight: '700', paddingTop: 6 }, error: { color: '#DC2626' }, bottomNav: { minHeight: 64, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingTop: 8, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 8 }, navItem: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 3 }, navLabel: { color: '#5B21B6', fontSize: 12, fontWeight: '600' } });

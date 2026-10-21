@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -6,14 +6,21 @@ import {
   View,
   Pressable,
   ScrollView,
+  Modal,
+  Platform,
   TextInput,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { auth } from '@/config/firebase';
 import { API_URL } from '@/config/api';
+import { cleanupPickedImage, useGalleryImage, type PickedImage } from '@/hooks/use-gallery-image';
+import { uploadUserImage } from '@/services/image-storage';
+import { PetImage } from '@/components/pet-image';
+import { calculatePetAge, formatPetDate, localDateString, parsePetDate } from '@/utils/pet-date';
 
 const colors = Colors.light;
 
@@ -34,6 +41,10 @@ const estados = [
 
 export default function AgregarMascotaScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const rawId = params.id;
+  const mascotaId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const editando = Boolean(mascotaId);
 
   const [nombre, setNombre] = useState('');
   const [especie, setEspecie] = useState('');
@@ -43,32 +54,116 @@ export default function AgregarMascotaScreen() {
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [sexo, setSexo] = useState('');
 
-  const [edad, setEdad] = useState('');
   const [peso, setPeso] = useState('');
   const [color, setColor] = useState('');
 
-  const [propietario, setPropietario] = useState('');
+  const [propietario, setPropietario] = useState(auth.currentUser?.displayName || '');
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
 
   const [estado, setEstado] = useState('');
   const [mostrarEstados, setMostrarEstados] = useState(false);
+  const [cargando, setCargando] = useState(editando);
+  const [guardando, setGuardando] = useState(false);
+  const [fotoGuardada, setFotoGuardada] = useState('');
+  const [quitarFoto, setQuitarFoto] = useState(false);
+  const [fotoSeleccionada, setFotoSeleccionada] = useState<PickedImage | null>(null);
+  const [mostrarSelectorFecha, setMostrarSelectorFecha] = useState(false);
+  const [fechaSelector, setFechaSelector] = useState(new Date());
+  const fotoSeleccionadaRef = useRef<PickedImage | null>(null);
+  const { pickImage, pickingImage } = useGalleryImage();
+  const edadCalculada = calculatePetAge(fechaNacimiento);
+  const edad = edadCalculada === null ? '' : String(edadCalculada);
+
+  useEffect(() => { fotoSeleccionadaRef.current = fotoSeleccionada; }, [fotoSeleccionada]);
+  useEffect(() => () => { void cleanupPickedImage(fotoSeleccionadaRef.current); }, []);
+
+  useEffect(() => {
+    if (!mascotaId) return;
+    let activo = true;
+    (async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) throw new Error('Inicia sesión para editar esta mascota.');
+        const token = await user.getIdToken();
+        const response = await fetch(`${API_URL}/api/mascotas/${encodeURIComponent(mascotaId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'No se pudo cargar la mascota.');
+        const pet = data.data || data.mascota;
+        if (!pet) throw new Error('No se encontraron los datos de la mascota.');
+        if (!activo) return;
+        setNombre(pet.nombre || ''); setEspecie(pet.especie || ''); setRaza(pet.raza || '');
+        const birthDate = parsePetDate(String(pet.fechaNacimiento || ''));
+        setFechaNacimiento(birthDate ? localDateString(birthDate) : ''); setSexo(pet.sexo || '');
+        setPeso(pet.peso === undefined || pet.peso === null ? '' : String(pet.peso));
+        setColor(pet.color || ''); setPropietario(user.displayName || pet.propietario || '');
+        setFotoGuardada(pet.foto || pet.imagen || '');
+        setQuitarFoto(false);
+        setTelefono(pet.telefono || ''); setDireccion(pet.direccion || ''); setEstado(pet.estado || '');
+      } catch (error: any) {
+        Alert.alert('No se pudo cargar', error?.message || 'Intenta nuevamente.', [
+          { text: 'Volver', onPress: () => router.replace('/mascotas') },
+        ]);
+      } finally { if (activo) setCargando(false); }
+    })();
+    return () => { activo = false; };
+  }, [mascotaId, router]);
 
   const handleVolver = () => {
-    console.log('REGRESANDO A MASCOTAS');
     router.replace('/mascotas');
   };
 
+  const seleccionarFoto = async () => {
+    const image = await pickImage();
+    if (image) {
+      setQuitarFoto(false);
+      const previous = fotoSeleccionada;
+      setFotoSeleccionada(image);
+      void cleanupPickedImage(previous);
+    }
+  };
+
+  const quitarFotografia = () => {
+    if (fotoSeleccionada) {
+      const selected = fotoSeleccionada;
+      setFotoSeleccionada(null);
+      void cleanupPickedImage(selected);
+      return;
+    }
+    if (quitarFoto) { setQuitarFoto(false); return; }
+    if (!fotoGuardada) return;
+    Alert.alert('Quitar fotografía', 'Al guardar, se quitará la fotografía personalizada y se mostrará la imagen de la especie.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Quitar', style: 'destructive', onPress: () => setQuitarFoto(true) },
+    ]);
+  };
+
+  const cambiarFechaNacimiento = (date: Date) => {
+    const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (localDate > today) return;
+    setFechaNacimiento(localDateString(localDate));
+    setFechaSelector(localDate);
+  };
+
+  const abrirSelectorFecha = () => {
+    setFechaSelector(parsePetDate(fechaNacimiento) || new Date());
+    setMostrarSelectorFecha(true);
+  };
+
   const handleGuardar = async () => {
-    if (!nombre.trim()) {
+    if (guardando) return;
+    if (!/^[\p{L}]+(?:[ '\u2019-][\p{L}]+)*$/u.test(nombre.trim())) {
       Alert.alert(
         'Campo requerido',
-        'Ingresa el nombre de la mascota.'
+        'Ingresa un nombre con al menos una letra.'
       );
       return;
     }
 
-    if (!especie) {
+    if (!especies.includes(especie)) {
       Alert.alert(
         'Campo requerido',
         'Selecciona la especie de la mascota.'
@@ -100,7 +195,7 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
-    if (Number(edad) < 0) {
+    if (!/^\d+(?:[.,]\d+)?$/.test(edad.trim()) || !Number.isFinite(Number(edad.replace(',', '.'))) || Number(edad.replace(',', '.')) < 0) {
       Alert.alert(
         'Edad inválida',
         'La edad debe ser mayor o igual a cero.'
@@ -116,7 +211,7 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
-    if (Number(peso) <= 0) {
+    if (!/^\d+(?:[.,]\d+)?$/.test(peso.trim()) || !Number.isFinite(Number(peso.replace(',', '.'))) || Number(peso.replace(',', '.')) <= 0) {
       Alert.alert(
         'Peso inválido',
         'El peso debe ser mayor que cero.'
@@ -132,6 +227,11 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
+    if (!/[\p{L}]/u.test(color)) {
+      Alert.alert('Color inválido', 'El color debe incluir letras.');
+      return;
+    }
+
     if (!fechaNacimiento.trim()) {
       Alert.alert(
         'Campo requerido',
@@ -140,10 +240,25 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
+    const fechaValida = (valor: string) => {
+      const m = valor.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/) || valor.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!m) return false;
+      const yyyy = m[1].length === 4 ? Number(m[1]) : Number(m[3]);
+      const mm = Number(m[2]);
+      const dd = m[1].length === 4 ? Number(m[3]) : Number(m[1]);
+      const d = new Date(yyyy, mm - 1, dd);
+      const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
+      return d.getFullYear() === yyyy && d.getMonth() === mm - 1 && d.getDate() === dd && d <= hoy;
+    };
+    if (!fechaValida(fechaNacimiento)) {
+      Alert.alert('Fecha inválida', 'Usa DD/MM/AAAA o AAAA-MM-DD y una fecha que no sea futura.');
+      return;
+    }
+
     if (!propietario.trim()) {
       Alert.alert(
-        'Campo requerido',
-        'Ingresa el nombre del propietario.'
+        'Perfil incompleto',
+        'Completa tu nombre desde Perfil antes de registrar la mascota.'
       );
       return;
     }
@@ -153,6 +268,12 @@ export default function AgregarMascotaScreen() {
         'Campo requerido',
         'Ingresa el teléfono del propietario.'
       );
+      return;
+    }
+
+    const digitosTelefono = telefono.replace(/\D/g, '');
+    if (!/^\+?[0-9\s().-]+$/.test(telefono.trim()) || digitosTelefono.length < 7 || digitosTelefono.length > 15) {
+      Alert.alert('Teléfono inválido', 'Ingresa entre 7 y 15 dígitos, con prefijo internacional opcional.');
       return;
     }
 
@@ -172,10 +293,9 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
+    let mascotaCreada = false;
     try {
-      console.log('================================');
-      console.log('GUARDANDO MASCOTA');
-      console.log('================================');
+      setGuardando(true);
 
       const user = auth.currentUser;
 
@@ -187,79 +307,79 @@ export default function AgregarMascotaScreen() {
         return;
       }
 
-      console.log('Usuario:', user.email);
-      console.log('UID:', user.uid);
+      if (!propietario.trim()) {
+        Alert.alert('Perfil incompleto', 'Completa el nombre de tu perfil antes de registrar una mascota.');
+        return;
+      }
 
       const token = await user.getIdToken();
 
-      const url = `${API_URL}/api/mascotas`;
+      const url = editando
+        ? `${API_URL}/api/mascotas/${encodeURIComponent(mascotaId!)}`
+        : `${API_URL}/api/mascotas`;
 
-      console.log('URL:', url);
-      console.log('Enviando mascota al backend...');
-
-      const mascota = {
+      const mascota: Record<string, unknown> = {
         nombre: nombre.trim(),
         especie,
         raza: raza.trim(),
         sexo,
-        edad: Number(edad),
-        peso: Number(peso),
+        edad: edadCalculada,
+        peso: Number(peso.replace(',', '.')),
         color: color.trim(),
-        fechaNacimiento: fechaNacimiento.trim(),
+        fechaNacimiento: localDateString(parsePetDate(fechaNacimiento)!),
         propietario: propietario.trim(),
         telefono: telefono.trim(),
         direccion: direccion.trim(),
         estado,
       };
 
-      console.log('Datos enviados:', mascota);
+      if (!fotoSeleccionada && fotoGuardada) mascota.foto = fotoGuardada;
+      if (quitarFoto) { mascota.foto = ''; mascota.imagen = ''; }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(mascota),
-      });
+      const guardarEnBackend = async (endpoint: string, method: 'POST' | 'PUT', payload: Record<string, unknown>) => {
+        const response = await fetch(endpoint, {
+          method,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || data.error || 'No se pudo guardar la mascota.');
+        return data;
+      };
 
-      console.log(
-        'Backend respondió con status:',
-        response.status
-      );
-
-      const responseText = await response.text();
-
-      console.log(
-        'Respuesta del backend:',
-        responseText
-      );
-
-      let data: any = {};
-
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        throw new Error(
-          `El servidor respondió algo que no es JSON. Status: ${response.status}`
-        );
+      let idMascota = mascotaId;
+      if (editando) {
+        if (fotoSeleccionada) {
+          const { url: foto } = await uploadUserImage(
+            fotoSeleccionada,
+            `users/${user.uid}/pets/${encodeURIComponent(mascotaId!)}`
+          );
+          await guardarEnBackend(url, 'PUT', { ...mascota, foto });
+        } else {
+          await guardarEnBackend(url, 'PUT', mascota);
+        }
+      } else {
+        const data = await guardarEnBackend(url, 'POST', mascota);
+        const createdPet = data.data || data.mascota || data;
+        idMascota = String(createdPet.id ?? createdPet._id ?? createdPet.mascotaId ?? '');
+        mascotaCreada = true;
+        if (fotoSeleccionada) {
+          if (!idMascota) throw new Error('La mascota se creó, pero el servidor no devolvió su identificador para guardar la foto.');
+          const { url: foto } = await uploadUserImage(
+            fotoSeleccionada,
+            `users/${user.uid}/pets/${encodeURIComponent(idMascota)}`
+          );
+          await guardarEnBackend(`${API_URL}/api/mascotas/${encodeURIComponent(idMascota)}`, 'PUT', { ...mascota, foto });
+        }
       }
 
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-          data.error ||
-          'No se pudo registrar la mascota.'
-        );
-      }
-
-      console.log('================================');
-      console.log('MASCOTA CREADA CORRECTAMENTE');
-      console.log('================================');
+      const selectedImage = fotoSeleccionada;
+      setFotoSeleccionada(null);
+      await cleanupPickedImage(selectedImage);
 
       Alert.alert(
-        'Mascota registrada',
-        'La mascota fue guardada correctamente.',
+        editando ? 'Cambios guardados' : 'Mascota registrada',
+        editando ? 'La información se actualizó correctamente.' : 'La mascota fue guardada correctamente.',
         [
           {
             text: 'OK',
@@ -269,17 +389,18 @@ export default function AgregarMascotaScreen() {
       );
 
     } catch (error: any) {
-      console.error('================================');
-      console.error('ERROR AL GUARDAR MASCOTA');
-      console.error('================================');
-      console.error('Error completo:', error);
-      console.error('Mensaje:', error?.message);
+      console.error('Error guardando mascota:', error);
+      if (quitarFoto) setQuitarFoto(false);
 
       Alert.alert(
-        'Error',
-        error?.message ||
-          'No se pudo guardar la mascota. Intenta nuevamente.'
+        mascotaCreada ? 'Mascota registrada sin fotografía' : 'Error al guardar',
+        mascotaCreada
+          ? `La ficha quedó guardada, pero la foto no se pudo completar: ${error?.message || 'Error de Storage o permisos.'} Puedes editarla e intentarlo nuevamente.`
+          : error?.message || 'No se pudo guardar la mascota. Intenta nuevamente.',
+        mascotaCreada ? [{ text: 'Ver mascotas', onPress: () => router.replace('/mascotas') }] : undefined
       );
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -303,7 +424,7 @@ export default function AgregarMascotaScreen() {
           </Pressable>
 
           <Text style={styles.headerTitle}>
-            Agregar mascota
+            {editando ? 'Editar mascota' : 'Agregar mascota'}
           </Text>
 
           <View style={styles.headerSpace} />
@@ -311,7 +432,7 @@ export default function AgregarMascotaScreen() {
         </View>
 
         {/* CONTENIDO */}
-        <ScrollView
+        {cargando ? <Text style={{ textAlign: 'center', padding: 24 }}>Cargando mascota...</Text> : <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -323,23 +444,21 @@ export default function AgregarMascotaScreen() {
 
             <Pressable
               style={styles.photoContainer}
-              onPress={() =>
-                Alert.alert(
-                  'Foto',
-                  'La selección de imagen se agregará posteriormente.'
-                )
-              }
+              onPress={seleccionarFoto}
+              disabled={pickingImage || guardando}
+              accessibilityRole="button"
+              accessibilityLabel={fotoSeleccionada || fotoGuardada ? 'Cambiar fotografía de mascota' : 'Elegir fotografía de mascota'}
             >
-              <Ionicons
-                name="camera-outline"
-                size={32}
-                color={colors.primary}
-              />
+              <PetImage species={especie} photoUri={fotoSeleccionada?.uri || (quitarFoto ? '' : fotoGuardada)} style={styles.photoPreview} />
+              <View style={styles.photoCameraBadge}><Ionicons name="camera" size={17} color="#fff" /></View>
             </Pressable>
 
+            {(fotoSeleccionada || fotoGuardada) ? <Pressable onPress={quitarFotografia} disabled={guardando} style={styles.removePhoto}><Text style={styles.removePhotoText}>{fotoSeleccionada ? 'Cancelar selección de foto' : quitarFoto ? 'Restaurar fotografía' : 'Quitar fotografía'}</Text></Pressable> : null}
+
             <Text style={styles.photoText}>
-              Agregar foto
+              {pickingImage ? 'Abriendo galería...' : fotoSeleccionada || fotoGuardada ? 'Cambiar foto' : 'Seleccionar foto'}
             </Text>
+            {fotoSeleccionada ? <Text style={styles.photoNotice}>La fotografía se subirá a Storage y se vinculará al guardar la ficha.</Text> : null}
 
           </View>
 
@@ -447,22 +566,11 @@ export default function AgregarMascotaScreen() {
               Fecha de nacimiento
             </Text>
 
-            <View style={styles.inputWithIcon}>
-              <TextInput
-                style={styles.inputSelect}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor="#9CA3AF"
-                value={fechaNacimiento}
-                onChangeText={setFechaNacimiento}
-                keyboardType="numeric"
-              />
-
-              <Ionicons
-                name="calendar-outline"
-                size={20}
-                color="#9CA3AF"
-              />
-            </View>
+            {Platform.OS === 'web' ? <TextInput style={styles.input} placeholder="AAAA-MM-DD" placeholderTextColor="#9CA3AF" value={fechaNacimiento} onChangeText={setFechaNacimiento} keyboardType="numeric" /> : <Pressable style={styles.inputWithIcon} onPress={abrirSelectorFecha} accessibilityRole="button" accessibilityLabel="Seleccionar fecha de nacimiento"><Text style={[styles.inputSelect, !fechaNacimiento && styles.placeholderDate]}>{fechaNacimiento ? formatPetDate(fechaNacimiento) : 'Seleccionar fecha'}</Text><Ionicons name="calendar-outline" size={20} color="#9CA3AF" /></Pressable>}
+            {mostrarSelectorFecha && Platform.OS === 'android' && <DateTimePicker value={fechaSelector} mode="date" maximumDate={new Date()} presentation="dialog" positiveButton={{ label: 'Elegir' }} negativeButton={{ label: 'Cancelar' }} onValueChange={(_event, date) => { cambiarFechaNacimiento(date); setMostrarSelectorFecha(false); }} onDismiss={() => setMostrarSelectorFecha(false)} />}
+            <Modal transparent animationType="fade" visible={mostrarSelectorFecha && Platform.OS === 'ios'} onRequestClose={() => setMostrarSelectorFecha(false)}>
+              <View style={styles.dateModalOverlay}><View style={styles.dateModalCard}><Text style={styles.dateModalTitle}>Fecha de nacimiento</Text><DateTimePicker value={fechaSelector} mode="date" maximumDate={new Date()} display="inline" locale="es_ES" accentColor={colors.primary} onValueChange={(_event, date) => setFechaSelector(new Date(date.getFullYear(), date.getMonth(), date.getDate()))} /><View style={styles.dateModalActions}><Pressable onPress={() => setMostrarSelectorFecha(false)} style={styles.dateAction}><Text style={styles.dateCancelText}>Cancelar</Text></Pressable><Pressable onPress={() => { cambiarFechaNacimiento(fechaSelector); setMostrarSelectorFecha(false); }} style={[styles.dateAction, styles.dateConfirm]}><Text style={styles.dateConfirmText}>Listo</Text></Pressable></View></View></View>
+            </Modal>
           </View>
 
           {/* EDAD */}
@@ -477,7 +585,8 @@ export default function AgregarMascotaScreen() {
                 placeholder="Ej. 5"
                 placeholderTextColor="#9CA3AF"
                 value={edad}
-                onChangeText={setEdad}
+                editable={false}
+                accessibilityLabel="Edad calculada en años cumplidos"
                 keyboardType="numeric"
               />
 
@@ -602,10 +711,10 @@ export default function AgregarMascotaScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Nombre del propietario"
+              placeholder={auth.currentUser?.displayName ? 'Nombre del propietario' : 'Completa tu nombre en el perfil'}
               placeholderTextColor="#9CA3AF"
               value={propietario}
-              onChangeText={setPropietario}
+              editable={false}
               autoCapitalize="words"
             />
           </View>
@@ -715,7 +824,8 @@ export default function AgregarMascotaScreen() {
           {/* GUARDAR */}
           <Pressable
             style={styles.saveButton}
-            onPress={handleGuardar}
+            onPress={() => { void handleGuardar(); }}
+            disabled={guardando || pickingImage}
           >
             <Ionicons
               name="checkmark-circle-outline"
@@ -724,7 +834,7 @@ export default function AgregarMascotaScreen() {
             />
 
             <Text style={styles.saveButtonText}>
-              Guardar mascota
+              {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Guardar mascota'}
             </Text>
           </Pressable>
 
@@ -738,7 +848,7 @@ export default function AgregarMascotaScreen() {
             </Text>
           </Pressable>
 
-        </ScrollView>
+        </ScrollView>}
 
       </View>
     </SafeAreaView>
@@ -825,10 +935,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDE9FE',
     borderWidth: 2,
     borderColor: colors.primary,
-    borderStyle: 'dashed',
+    borderStyle: 'solid',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  photoPreview: { width: '100%', height: '100%', borderRadius: 44 },
+  photoCameraBadge: { position: 'absolute', right: -3, bottom: -2, width: 31, height: 31, borderRadius: 16, backgroundColor: colors.primary, borderColor: '#fff', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 
   photoText: {
     color: colors.primary,
@@ -836,6 +948,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 10,
   },
+  photoNotice: { color: '#92400E', backgroundColor: '#FEF3C7', borderRadius: 10, padding: 10, marginTop: 8, maxWidth: 300, textAlign: 'center', lineHeight: 18 },
+  removePhoto: { padding: 8, marginTop: 3 },
+  removePhotoText: { color: '#B42332', fontSize: 13, fontWeight: '600' },
 
   /* CAMPOS */
 
@@ -880,6 +995,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingVertical: 0,
   },
+  placeholderDate: { color: '#9CA3AF' },
+  dateModalOverlay: { flex: 1, backgroundColor: '#0006', justifyContent: 'center', padding: 20 },
+  dateModalCard: { backgroundColor: '#fff', borderRadius: 18, padding: 16, alignItems: 'center' },
+  dateModalTitle: { color: '#1F2937', fontSize: 17, fontWeight: '700', marginBottom: 8 },
+  dateModalActions: { width: '100%', flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
+  dateAction: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10 },
+  dateConfirm: { backgroundColor: colors.primary },
+  dateCancelText: { color: '#6B7280', fontWeight: '600' },
+  dateConfirmText: { color: '#fff', fontWeight: '700' },
 
   selectText: {
     flex: 1,

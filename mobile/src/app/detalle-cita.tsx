@@ -65,10 +65,12 @@ export default function DetalleCitaScreen() {
   const [mascota, setMascota] = useState<Mascota | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [cancelando, setCancelando] = useState(false);
 
   // Regresar a la lista de citas de forma directa.
   const volverACitas = () => {
-    router.replace('/citas');
+    if (router.canGoBack()) router.back();
+    else router.replace('/citas');
   };
 
   const cargarDetalle = useCallback(async () => {
@@ -146,7 +148,7 @@ export default function DetalleCitaScreen() {
             setMascota(mascotaData.mascota || mascotaData.data || null);
           }
         } catch (err) {
-          console.log('No se pudo cargar la mascota:', err);
+          console.error('No se pudo cargar la mascota de la cita:', err);
         }
       }
     } catch (err: any) {
@@ -239,6 +241,8 @@ export default function DetalleCitaScreen() {
   };
 
   const ejecutarCancelacion = async () => {
+    if (cancelando) return;
+    setCancelando(true);
     try {
       if (!cita) return;
 
@@ -272,6 +276,8 @@ export default function DetalleCitaScreen() {
         );
       }
 
+      if (data.data) setCita((actual) => actual ? { ...actual, ...data.data } : actual);
+
       Alert.alert(
         'Cita cancelada',
         'La cita fue cancelada correctamente.',
@@ -279,6 +285,8 @@ export default function DetalleCitaScreen() {
       );
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'No se pudo cancelar la cita.');
+    } finally {
+      setCancelando(false);
     }
   };
 
@@ -338,9 +346,7 @@ export default function DetalleCitaScreen() {
   }
 
   const estado = obtenerEstado(cita.estado);
-  const puedeCancelar =
-    cita.estado?.toLowerCase() !== 'cancelada' &&
-    cita.estado?.toLowerCase() !== 'completada';
+  const puedeCancelar = ['reservada', 'confirmada'].includes(cita.estado?.toLowerCase());
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -474,6 +480,7 @@ export default function DetalleCitaScreen() {
             <Pressable
               style={styles.botonCancelar}
               onPress={cancelarCita}
+              disabled={cancelando}
             >
               <Ionicons
                 name="close-circle-outline"
@@ -481,7 +488,7 @@ export default function DetalleCitaScreen() {
                 color={colors.red}
               />
               <Text style={styles.textoCancelar}>
-                Cancelar cita
+                {cancelando ? 'Cancelando...' : 'Cancelar cita'}
               </Text>
             </Pressable>
           )}
