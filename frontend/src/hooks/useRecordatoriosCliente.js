@@ -4,7 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { obtenerMascotas } from "../services/mascotas.service";
 import { obtenerVacunasPorMascota } from "../services/vacunas.service";
 import { obtenerCitasPorMascota } from "../services/citas.service";
+import { obtenerMisPedidos } from "../services/tienda.service";
 import { ultimaDosisPorVacuna } from "../utils/estadoClinico";
+import { describirPedido } from "../utils/descripcionPedido";
+import { formatearFechaPedido } from "../utils/fechasPedido";
+import {
+    obtenerFechaLimitePedido,
+    esVencimientoHoyOManyana
+} from "../utils/vencimientoPedido";
 import {
     formatearFechaCorta,
     esCitaProxima,
@@ -16,7 +23,6 @@ import { useAuth } from "../context/AuthContext";
 const EVENTO_ACTUALIZAR = "vetcare:recordatorios-actualizar";
 
 export default function useRecordatoriosCliente() {
-
     const { user, userRole } = useAuth();
     const esCliente = !!user && userRole === "Cliente";
 
@@ -24,36 +30,44 @@ export default function useRecordatoriosCliente() {
     const [cargando, setCargando] = useState(false);
 
     const cargar = useCallback(async () => {
-
         if (!esCliente) {
             setRecordatorios([]);
             return;
         }
 
         try {
-
             setCargando(true);
 
-            const respMascotas = await obtenerMascotas();
-            const misMascotas = respMascotas.data?.data || [];
-
-            if (misMascotas.length === 0) {
-                setRecordatorios([]);
-                return;
-            }
-
-            const [citasResultados, vacunasResultados] = await Promise.all([
-                Promise.allSettled(misMascotas.map((m) => obtenerCitasPorMascota(m.id))),
-                Promise.allSettled(misMascotas.map((m) => obtenerVacunasPorMascota(m.id))),
+            const [respMascotasRes, respPedidosRes] = await Promise.allSettled([
+                obtenerMascotas(),
+                obtenerMisPedidos()
             ]);
 
-            const todasLasCitas = citasResultados
-                .filter((r) => r.status === "fulfilled")
-                .flatMap((r) => r.value.data?.data || []);
+            const misMascotas = respMascotasRes.status === "fulfilled"
+                ? (respMascotasRes.value.data?.data || [])
+                : [];
 
-            const todasLasVacunas = vacunasResultados
-                .filter((r) => r.status === "fulfilled")
-                .flatMap((r) => r.value.data?.data || []);
+            const misPedidos = respPedidosRes.status === "fulfilled"
+                ? (respPedidosRes.value.data?.data || [])
+                : [];
+
+            let todasLasCitas = [];
+            let todasLasVacunas = [];
+
+            if (misMascotas.length > 0) {
+                const [citasResultados, vacunasResultados] = await Promise.all([
+                    Promise.allSettled(misMascotas.map((m) => obtenerCitasPorMascota(m.id))),
+                    Promise.allSettled(misMascotas.map((m) => obtenerVacunasPorMascota(m.id))),
+                ]);
+
+                todasLasCitas = citasResultados
+                    .filter((r) => r.status === "fulfilled")
+                    .flatMap((r) => r.value.data?.data || []);
+
+                todasLasVacunas = vacunasResultados
+                    .filter((r) => r.status === "fulfilled")
+                    .flatMap((r) => r.value.data?.data || []);
+            }
 
             const vacunasUltimaDosis = ultimaDosisPorVacuna(todasLasVacunas);
 
@@ -111,17 +125,39 @@ export default function useRecordatoriosCliente() {
                 }
             });
 
-            nuevos.sort((a, b) => a.fecha.localeCompare(b.fecha));
+            // Recordatorios de pedidos en tienda
+            misPedidos.forEach((p) => {
+                const desc = describirPedido(p);
+                const fechaLimite = obtenerFechaLimitePedido(p);
+                const esRetiro = p.tipo === "retiro";
+                const activo = p.estado === "pendiente" || p.estado === "listo";
+                const vencePronto = esRetiro && activo && esVencimientoHoyOManyana(fechaLimite);
+
+                if (vencePronto) {
+                    const fechaTxt = formatearFechaPedido(fechaLimite);
+                    nuevos.push({
+                        id: `p-vence-${p.id}`,
+                        fecha: fechaLimite,
+                        tipo: "por-vencer",
+                        mensaje: `Tu pedido de ${desc} vence el ${fechaTxt}. Si no lo retiras se cancelará.`
+                    });
+                } else if (p.estado === "listo") {
+                    nuevos.push({
+                        id: `p-listo-${p.id}`,
+                        fecha: p.fechaPedido,
+                        tipo: "cita",
+                        mensaje: `Tu pedido de ${desc} está listo para retirar`
+                    });
+                }
+            });
+
+            nuevos.sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
             setRecordatorios(nuevos);
 
         } catch (error) {
-
             console.error("Error al cargar recordatorios del cliente:", error);
-
         } finally {
-
             setCargando(false);
-
         }
 
     }, [esCliente]);
@@ -155,5 +191,5 @@ export default function useRecordatoriosCliente() {
         cargando,
         recargar,
     };
-
 }
+
