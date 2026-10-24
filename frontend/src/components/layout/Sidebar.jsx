@@ -16,6 +16,8 @@ import {
     FaUserShield,
     FaSignOutAlt,
     FaTimes,
+    FaStore,
+    FaClipboardList,
 } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 
@@ -30,12 +32,14 @@ const menu = [
     { name: "Mascotas", href: "/mascotas", icon: <FaDog />, roles: ["Administrador", "Recepcionista", "Veterinario", "Cliente"] },
     { name: "Historial Clínico", href: "/historial", icon: <FaNotesMedical />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
     { name: "Citas", href: "/citas", icon: <FaCalendarAlt /> },
+    { name: "Tienda", href: "/tienda", icon: <FaStore />, roles: ["Cliente"] },
     { name: "Vacunas", href: "/vacunas", icon: <FaSyringe />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
     { name: "Clientes", href: "/clientes", icon: <FaUsers />, roles: ["Administrador", "Recepcionista"] },
     // --- Módulo de ventas, integrado desde la rama auth/ventas ---
     { name: "Productos", href: "/productos", icon: <FaBoxOpen />, roles: ["Administrador", "Recepcionista"] },
     { name: "Inventario", href: "/inventario", icon: <FaBoxes />, roles: ["Administrador", "Recepcionista"] },
     { name: "Ventas", href: "/ventas", icon: <FaShoppingCart />, roles: ["Administrador", "Recepcionista"] },
+    { name: "Pedidos", href: "/pedidos", icon: <FaClipboardList />, roles: ["Administrador", "Recepcionista"] },
     { name: "Reportes", href: "/reportes", icon: <FaChartBar />, roles: ["Administrador", "Recepcionista"] },
     { name: "Usuarios", href: "/usuarios", icon: <FaUserShield />, roles: ["Administrador"] },
 ];

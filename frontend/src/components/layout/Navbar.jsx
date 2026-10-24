@@ -8,12 +8,13 @@ import {
     FaBars,
     FaCalendarAlt,
     FaSyringe,
+    FaShoppingBag,
 } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 import useRecordatoriosCliente from "../../hooks/useRecordatoriosCliente";
+import CampanaPersonal from "./CampanaPersonal";
 
 function CampanaCliente() {
-
     const { recordatorios, cargando } = useRecordatoriosCliente();
     const [abierto, setAbierto] = useState(false);
     const dropdownRef = useRef(null);
@@ -104,7 +105,9 @@ function CampanaCliente() {
                                         key={r.id}
                                         className={`p-2.5 rounded-lg border text-xs font-medium flex items-start gap-2.5 ${estilo}`}
                                     >
-                                        {r.tipo === "cita" ? (
+                                        {r.categoria === "pedido" ? (
+                                            <FaShoppingBag className="shrink-0 text-sm mt-0.5" />
+                                        ) : r.categoria === "cita" ? (
                                             <FaCalendarAlt className="shrink-0 text-sm mt-0.5" />
                                         ) : (
                                             <FaSyringe className="shrink-0 text-sm mt-0.5" />
@@ -119,16 +122,15 @@ function CampanaCliente() {
             )}
         </div>
     );
-
 }
 
 export default function Navbar({ onAbrirMenu }) {
-
     const { userData, userRole } = useAuth();
 
     const displayName = userData?.name || "Usuario VetCare";
     const displayRole = userData?.role || "";
     const esCliente = userRole === "Cliente";
+    const esPersonal = userRole === "Administrador" || userRole === "Recepcionista";
 
     return (
         <header className="h-16 bg-white shadow flex items-center justify-between px-4 md:px-8 print:hidden">
@@ -150,6 +152,8 @@ export default function Navbar({ onAbrirMenu }) {
             <div className="flex items-center gap-6 text-gray-600">
                 {esCliente ? (
                     <CampanaCliente />
+                ) : esPersonal ? (
+                    <CampanaPersonal />
                 ) : (
                     <FaBell className="cursor-pointer text-xl" />
                 )}
@@ -172,5 +176,4 @@ export default function Navbar({ onAbrirMenu }) {
             </div>
         </header>
     );
-
 }

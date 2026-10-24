@@ -1,6 +1,11 @@
 "use client";
 
-import { FaExclamationTriangle, FaCalendarAlt, FaSyringe } from "react-icons/fa";
+import {
+    FaExclamationTriangle,
+    FaCalendarAlt,
+    FaSyringe,
+    FaShoppingBag
+} from "react-icons/fa";
 
 export default function ListaRecordatorios({ recordatorios = [] }) {
     if (recordatorios.length === 0) return null;
@@ -26,7 +31,9 @@ export default function ListaRecordatorios({ recordatorios = [] }) {
                                 : "bg-blue-50 border-blue-200 text-blue-800"
                         }`}
                     >
-                        {r.tipo === "cita" ? (
+                        {r.categoria === "pedido" ? (
+                            <FaShoppingBag className="shrink-0 text-base" />
+                        ) : r.categoria === "cita" ? (
                             <FaCalendarAlt className="shrink-0 text-base" />
                         ) : (
                             <FaSyringe className="shrink-0 text-base" />
