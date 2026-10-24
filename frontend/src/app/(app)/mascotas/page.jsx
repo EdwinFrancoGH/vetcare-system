@@ -34,14 +34,14 @@ export default function MascotasPage() {
 
         <div>
 
-            <div className="flex justify-between items-center mb-6">
+            <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
 
-                <h1 className="text-4xl font-bold text-gray-900">
+                <h1 className="text-2xl font-bold text-gray-900 sm:text-4xl">
                     Gestión de Mascotas
                 </h1>
 
                 <button
-                    className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2 rounded-lg"
+                    className="shrink-0 rounded-lg bg-blue-700 px-5 py-2 text-white hover:bg-blue-800"
                 >
                     Nueva Mascota
                 </button>

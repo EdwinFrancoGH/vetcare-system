@@ -39,15 +39,31 @@ const menu = [
     { name: "Usuarios", href: "/usuarios", icon: <FaUserShield />, roles: ["Administrador"] },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose = () => {} }) {
     const pathname = usePathname();
     const { logout, userRole } = useAuth();
     const menuVisible = menu.filter((item) => !item.roles || item.roles.includes(userRole));
 
     return (
-        <aside className="w-64 bg-blue-900 text-white min-h-screen flex flex-col">
-            <div className="text-3xl font-bold p-6 border-b border-blue-700">
-                VetCare
+        <>
+            {open && (
+                <button
+                    type="button"
+                    aria-label="Cerrar menú"
+                    onClick={onClose}
+                    className="fixed inset-0 z-30 bg-black/50 md:hidden"
+                />
+            )}
+            <aside className={`vetcare-sidebar-background fixed inset-y-0 left-0 z-40 flex min-h-screen w-64 shrink-0 flex-col text-white transition-transform duration-200 md:relative md:inset-auto md:h-full md:min-h-0 md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+            <div className="flex items-center justify-between gap-2 border-b border-blue-700 px-4 py-3">
+                <span className="text-3xl font-bold">VetCare</span>
+                <img
+                    src="/images/cat-vetcare.png?v=2"
+                    alt="Gatito veterinario"
+                    width="52"
+                    height="72"
+                    className="h-[4.5rem] w-[3.25rem] shrink-0 object-contain"
+                />
             </div>
 
             <nav className="mt-6 flex-1 overflow-y-auto">
@@ -57,6 +73,7 @@ export default function Sidebar() {
                         <Link
                             key={item.href}
                             href={item.href}
+                            onClick={onClose}
                             className={`flex items-center gap-3 px-6 py-4 hover:bg-blue-800 transition ${
                                 isActive ? "bg-blue-800 font-semibold" : ""
                             }`}
@@ -75,6 +92,7 @@ export default function Sidebar() {
                 <FaSignOutAlt />
                 Cerrar Sesión
             </button>
-        </aside>
+            </aside>
+        </>
     );
 }

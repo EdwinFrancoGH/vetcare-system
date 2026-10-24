@@ -24,3 +24,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.vetcare-panel-background {
+  background-image:
+    linear-gradient(rgba(248, 250, 252, 0.82), rgba(248, 250, 252, 0.82)),
+    url("/images/fondo-vetcare.jpg");
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.vetcare-sidebar-background {
+  background-image:
+    linear-gradient(rgba(30, 64, 175, 0.78), rgba(30, 64, 175, 0.78)),
+    url("/images/fondo-vetcare.jpg");
+  background-position: center;
+  background-size: cover;
+}
+
+.vetcare-login-background {
+  background-image:
+    linear-gradient(rgba(13, 21, 51, 0.82), rgba(13, 21, 51, 0.82)),
+    url("/images/fondo-vetcare.jpg");
+  background-position: center;
+  background-size: cover;
+}

@@ -56,7 +56,7 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#0d1533] flex items-center justify-center p-4 relative overflow-hidden font-sans">
+        <div className="vetcare-login-background min-h-screen flex items-center justify-center p-4 relative overflow-hidden font-sans">
             
             {/* Huellas decorativas esquina superior izquierda */}
             <div className="absolute top-12 left-12 hidden lg:flex flex-col gap-4 opacity-70">
@@ -153,15 +153,9 @@ export default function LoginPage() {
 
             {/* Área de mascotas (Derecha) */}
             <div className="absolute right-0 bottom-0 hidden lg:block w-[50vw] max-w-[650px] h-screen z-10 pointer-events-none">
-                <div 
-                    className="w-full h-full relative"
-                    style={{
-                        WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 60% 60%, black 30%, transparent 80%)',
-                        maskImage: 'radial-gradient(ellipse 80% 80% at 60% 60%, black 30%, transparent 80%)'
-                    }}
-                >
+                <div className="w-full h-full relative">
                     <Image 
-                        src="/images/pets.jpg" 
+                        src="/images/pets.png" 
                         alt="Dog and Cat" 
                         fill
                         priority

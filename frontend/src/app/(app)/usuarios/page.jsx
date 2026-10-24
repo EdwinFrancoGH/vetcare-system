@@ -12,13 +12,18 @@ import {
   eliminarUsuario as eliminarUsuarioApi,
 } from '../../../services/users.service';
 
+const MASTER_ADMIN_EMAIL = 'vladfranco1997@gmail.com';
+const isMasterAdminEmail = (email) =>
+  typeof email === 'string' && email.trim().toLowerCase() === MASTER_ADMIN_EMAIL;
+
 export default function UsuariosPage() {
-  const { user, userRole } = useAuth();
+  const { user, userRole, resetPassword } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
@@ -26,6 +31,8 @@ export default function UsuariosPage() {
     role: 'Administrador'
   });
   const [editingUser, setEditingUser] = useState(null);
+  const editingMasterAdmin = isMasterAdminEmail(editingUser?.email)
+    || (editingUser?.uid === user?.uid && isMasterAdminEmail(user?.email));
 
   useEffect(() => {
     if (userRole === 'Administrador') {
@@ -75,8 +82,10 @@ export default function UsuariosPage() {
     
     setIsSubmitting(true);
     try {
+      const adminUpdate = { ...newUser };
+      if (editingMasterAdmin) delete adminUpdate.password;
       const { data } = editingUser
-        ? await actualizarUsuario(editingUser.uid, newUser)
+        ? await actualizarUsuario(editingUser.uid, editingMasterAdmin ? adminUpdate : newUser)
         : await crearUsuario(newUser);
 
       if (editingUser) {
@@ -92,6 +101,24 @@ export default function UsuariosPage() {
       Swal.fire('Error', error.response?.data?.details || error.response?.data?.error || error.message, 'error');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSendPasswordReset = async () => {
+    if (!editingMasterAdmin || editingUser?.uid !== user?.uid || !user?.email) return;
+    setIsSendingReset(true);
+    try {
+      await resetPassword(user.email);
+      await Swal.fire(
+        'Correo enviado',
+        `Enviamos el enlace de cambio de contraseña a ${user.email}. La clave solo cambiará al abrirlo desde ese correo.`,
+        'success'
+      );
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Error', 'No se pudo enviar el enlace. Verifica la configuración del correo de Firebase e inténtalo de nuevo.', 'error');
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -201,12 +228,23 @@ export default function UsuariosPage() {
                   </td>
                 </tr>
               ) : (
-                users.map((u) => (
+                users.map((u) => {
+                  const isMasterAdmin = isMasterAdminEmail(u.email)
+                    || (u.uid === user.uid && isMasterAdminEmail(user.email));
+                  return (
                   <tr key={u.uid} className="hover:bg-zinc-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400">
-                          <User size={20} />
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-100 text-zinc-400">
+                          {u.photoURL ? (
+                            <img
+                              src={u.photoURL}
+                              alt={`Foto de perfil de ${u.name || u.email}`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <User size={20} />
+                          )}
                         </div>
                         <div>
                           <p className="font-semibold text-zinc-800">{u.name || 'Sin Nombre'}</p>
@@ -222,8 +260,8 @@ export default function UsuariosPage() {
                         <select
                           value={u.role}
                           onChange={(e) => handleRoleChange(u.uid, e.target.value)}
-                          disabled={u.uid === user.uid}
-                          className={`text-xs font-semibold px-2 py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${roleStyles[u.role] || 'bg-zinc-100 text-zinc-700'} ${u.uid === user.uid ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          disabled={u.uid === user.uid || isMasterAdmin}
+                          className={`text-xs font-semibold px-2 py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${roleStyles[u.role] || 'bg-zinc-100 text-zinc-700'} ${u.uid === user.uid || isMasterAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <option value="Administrador">Administrador</option>
                           <option value="Recepcionista">Recepcionista</option>
@@ -249,16 +287,17 @@ export default function UsuariosPage() {
                         </button>
                         <button 
                           onClick={() => handleDelete(u.uid, u.name || u.email)}
-                          disabled={u.uid === user.uid}
-                          className={`p-2 rounded-lg transition-colors ${u.uid === user.uid ? 'text-zinc-300 cursor-not-allowed' : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'}`}
-                          title={u.uid === user.uid ? "No puedes eliminarte a ti mismo" : "Eliminar usuario"}
+                          disabled={u.uid === user.uid || isMasterAdmin}
+                          className={`p-2 rounded-lg transition-colors ${u.uid === user.uid || isMasterAdmin ? 'text-zinc-300 cursor-not-allowed' : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'}`}
+                          title={isMasterAdmin ? "No se puede eliminar el superadministrador" : u.uid === user.uid ? "No puedes eliminarte a ti mismo" : "Eliminar usuario"}
                         >
                           <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -297,12 +336,32 @@ export default function UsuariosPage() {
                   required
                   value={newUser.email}
                   onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                  readOnly={editingMasterAdmin}
+                  title={editingMasterAdmin ? 'El correo del superadministrador no se puede cambiar desde aquí' : undefined}
                   className="w-full px-4 py-3 rounded-xl bg-zinc-50 border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-zinc-800"
                   placeholder="juan@vetcare.com"
                 />
               </div>
 
-              <div>
+              {editingMasterAdmin ? (
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                  <p className="text-sm text-indigo-900">
+                    La contraseña del superadministrador solo se cambia desde el correo registrado.
+                  </p>
+                  {editingUser.uid === user.uid ? (
+                    <button
+                      type="button"
+                      onClick={handleSendPasswordReset}
+                      disabled={isSendingReset}
+                      className="mt-3 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                    >
+                      {isSendingReset ? 'Enviando correo…' : 'Enviar enlace a mi correo'}
+                    </button>
+                  ) : (
+                    <p className="mt-2 text-xs text-indigo-700">Solo el titular puede solicitar el enlace de cambio.</p>
+                  )}
+                </div>
+              ) : <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">
                   Contraseña {editingUser && <span className="text-xs text-zinc-400 font-normal ml-1">(Dejar en blanco para no cambiar)</span>}
                 </label>
@@ -314,13 +373,14 @@ export default function UsuariosPage() {
                   className="w-full px-4 py-3 rounded-xl bg-zinc-50 border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-zinc-800"
                   placeholder={editingUser ? "••••••••" : "Mínimo 6 caracteres"}
                 />
-              </div>
+              </div>}
 
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">Rol</label>
                 <select
                   value={newUser.role}
                   onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                  disabled={editingMasterAdmin || editingUser?.uid === user.uid}
                   className="w-full px-4 py-3 rounded-xl bg-zinc-50 border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-zinc-800"
                 >
                   <option value="Administrador">Administrador</option>

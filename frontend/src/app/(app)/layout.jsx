@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Sidebar from "../../components/layout/Sidebar";
 import Navbar from "../../components/layout/Navbar";
 import ProtectedRoute from "../../components/auth/ProtectedRoute";
@@ -8,15 +9,17 @@ import ProtectedRoute from "../../components/auth/ProtectedRoute";
 // /login si no hay usuario) y dibuja el menú lateral + barra superior
 // alrededor de cualquier página dentro de app/(app)/.
 export default function AppLayout({ children }) {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
     return (
         <ProtectedRoute>
-            <div className="flex bg-gray-100 min-h-screen">
-                <Sidebar />
+            <div className="flex h-dvh w-full overflow-hidden">
+                <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-                <div className="flex-1 flex flex-col">
-                    <Navbar />
+                <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+                    <Navbar onMenuClick={() => setSidebarOpen(true)} />
 
-                    <main className="p-8">
+                    <main className="vetcare-panel-background min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8">
                         {children}
                     </main>
                 </div>
