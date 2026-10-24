@@ -118,7 +118,7 @@ export default function AgendarCita() {
       return;
     }
 
-    const telefonoValido = /^(\\+?503[\\s-]?)?[2-7]\\d{3}[\\s-]?\\d{4}$/.test(telefono.trim());
+    const telefonoValido = /^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/.test(telefono.trim());
       if (!telefonoValido) {
         Alert.alert('Teléfono inválido', 'Ingresa un teléfono salvadoreño válido de 8 dígitos, por ejemplo 7123-4567.');
         return;
