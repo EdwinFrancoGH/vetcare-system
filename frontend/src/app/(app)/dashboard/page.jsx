@@ -13,6 +13,7 @@ import BusquedaInteligente from "../../../components/dashboard/BusquedaInteligen
 import PanelAlertas from "../../../components/dashboard/PanelAlertas";
 import RequireRole from "../../../components/auth/RequireRole";
 import { useAuth } from "../../../context/AuthContext";
+import Swal from "sweetalert2";
 
 // Panel clínico: personal (Administrador / Recepcionista / Veterinario).
 function Dashboard() {
@@ -43,6 +44,7 @@ function Dashboard() {
         } catch (error) {
 
             console.error("Error al cargar el dashboard:", error);
+            Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
 
         } finally {
 
@@ -213,28 +215,30 @@ function DashboardCliente() {
                                 No tienes citas próximas.
                             </p>
                         ) : (
-                            <table className="min-w-full">
-                                <thead className="bg-blue-900 text-white">
-                                    <tr>
-                                        <th className="p-3 text-left">Fecha</th>
-                                        <th className="p-3 text-left">Hora</th>
-                                        <th className="p-3 text-left">Mascota</th>
-                                        <th className="p-3 text-left">Veterinario</th>
-                                        <th className="p-3 text-left">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {proximas.map((c) => (
-                                        <tr key={c.id} className="border-b text-gray-900">
-                                            <td className="p-3 capitalize">{formatearFechaLarga(c.fecha)}</td>
-                                            <td className="p-3">{c.hora}</td>
-                                            <td className="p-3">{nombreMascota(c.mascotaId)}</td>
-                                            <td className="p-3">{c.veterinario}</td>
-                                            <td className="p-3 capitalize">{c.estado}</td>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full">
+                                    <thead className="bg-blue-900 text-white">
+                                        <tr>
+                                            <th className="p-3 text-left">Fecha</th>
+                                            <th className="p-3 text-left">Hora</th>
+                                            <th className="p-3 text-left">Mascota</th>
+                                            <th className="p-3 text-left">Veterinario</th>
+                                            <th className="p-3 text-left">Estado</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {proximas.map((c) => (
+                                            <tr key={c.id} className="border-b text-gray-900">
+                                                <td className="p-3 capitalize">{formatearFechaLarga(c.fecha)}</td>
+                                                <td className="p-3">{c.hora}</td>
+                                                <td className="p-3">{nombreMascota(c.mascotaId)}</td>
+                                                <td className="p-3">{c.veterinario}</td>
+                                                <td className="p-3 capitalize">{c.estado}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
 

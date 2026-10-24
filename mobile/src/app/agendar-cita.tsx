@@ -27,6 +27,7 @@ export default function AgendarCita() {
   const [fecha, setFecha] = useState('');
   const [hora, setHora] = useState('');
   const [motivo, setMotivo] = useState('');
+  const [telefono, setTelefono] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -107,14 +108,21 @@ export default function AgendarCita() {
       !veterinario ||
       !fecha ||
       !hora ||
-      !motivo.trim()
+      !motivo.trim() ||
+      !telefono.trim()
     ) {
       Alert.alert(
         'Datos incompletos',
-        'Completa todos los campos.'
+        'Completa todos los campos, incluido el teléfono de contacto.'
       );
       return;
     }
+
+    const telefonoValido = /^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/.test(telefono.trim());
+      if (!telefonoValido) {
+        Alert.alert('Teléfono inválido', 'Ingresa un teléfono salvadoreño válido de 8 dígitos, por ejemplo 7123-4567.');
+        return;
+      }
 
     try {
       setGuardando(true);
@@ -160,9 +168,7 @@ export default function AgendarCita() {
                 mascota?.propietario ||
                 user.email ||
                 'Cliente',
-              telefono:
-                mascota?.telefono ||
-                '00000000',
+              telefono: telefono.trim(),
               motivo:
                 motivo.trim(),
             }),
@@ -265,11 +271,10 @@ export default function AgendarCita() {
                     mascota.id &&
                     styles.selected,
                 ]}
-                onPress={() =>
-                  setMascotaId(
-                    mascota.id
-                  )
-                }
+                onPress={() => {
+                  setMascotaId(mascota.id);
+                  setTelefono(mascota.telefono || '');
+                }}
               >
                 <Ionicons
                   name="paw-outline"
@@ -329,6 +334,19 @@ export default function AgendarCita() {
               </Pressable>
             ))
         )}
+
+        <Text style={styles.label}>
+          Teléfono de contacto
+        </Text>
+
+        <TextInput
+          style={styles.input}
+          placeholder="7123-4567"
+          value={telefono}
+          onChangeText={setTelefono}
+          keyboardType="phone-pad"
+          maxLength={14}
+        />
 
         <Text style={styles.label}>
           Motivo de la consulta

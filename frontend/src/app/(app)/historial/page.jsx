@@ -8,6 +8,7 @@ import HistorialForm from "../../../components/historial/HistorialForm";
 import FichaConsultaModal from "../../../components/historial/FichaConsultaModal";
 import ConfirmModal from "../../../components/ui/ConfirmModal";
 import RequireRole from "../../../components/auth/RequireRole";
+import Swal from "sweetalert2";
 
 function HistorialPage() {
 
@@ -42,6 +43,7 @@ function HistorialPage() {
         } catch (error) {
 
             console.error("Error al cargar historial clínico:", error);
+            Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
 
         }
 

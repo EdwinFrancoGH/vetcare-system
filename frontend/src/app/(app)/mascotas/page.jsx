@@ -66,6 +66,7 @@ import MascotaForm from "../../../components/mascotas/MascotaForm";//importamos 
 import ConfirmModal from "../../../components/ui/ConfirmModal";//modal de taiwin
 import RequireRole from "../../../components/auth/RequireRole";
 import { useAuth } from "../../../context/AuthContext";
+import Swal from "sweetalert2";
 
 
 function MascotasPage() {
@@ -95,6 +96,7 @@ function MascotasPage() {
         } catch (error) {
 
             console.error("Error al cargar mascotas:", error);
+            Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
 
         }
 

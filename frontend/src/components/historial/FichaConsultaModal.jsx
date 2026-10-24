@@ -36,7 +36,8 @@ export default function FichaConsultaModal({
 
                     <button
                         onClick={onClose}
-                        aria-label="Cerrar"
+                        aria-label="Cerrar modal"
+                        title="Cerrar modal"
                         className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
                     >
                         &times;
