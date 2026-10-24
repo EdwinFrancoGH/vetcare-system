@@ -20,7 +20,7 @@ export default function TarjetaPedido({
     const idCorto = (pedido.id || "").slice(0, 6).toUpperCase();
     const fecha = formatearFechaPedido(pedido.fechaPedido);
     const tipoEtiqueta = pedido.tipo === "en_linea"
-        ? "Pagado en línea (prueba)"
+        ? "Pago simulado; por cobrar al retirar"
         : "Retiro en clínica";
 
     const fechaLimite = obtenerFechaLimitePedido(pedido);
