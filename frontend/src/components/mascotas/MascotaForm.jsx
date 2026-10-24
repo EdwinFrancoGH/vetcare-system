@@ -8,6 +8,7 @@ import { crearMascota, actualizarMascota } from "../../services/mascotas.service
 import { useAuth } from "../../context/AuthContext";
 import { hoyISO, calcularEdadYMeses } from "../../utils/citas";
 import { ESPECIE_IDS, obtenerEspecie } from "../../utils/especies";
+import { resizeImageToBase64 } from "../../utils/image";
 import {
     REGEX_LETRAS,
     REGEX_TELEFONO_INPUT,
@@ -32,6 +33,7 @@ const FORMULARIO_INICIAL = {
     telefono: "",
     direccion: "",
     estado: "Activo",
+    fotoURL: "",
 };
 
 export default function MascotaForm({ mascota, onClose, onSuccess }) {
@@ -63,6 +65,7 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
                   telefono: String(mascota.telefono ?? ""),
                   direccion: String(mascota.direccion ?? ""),
                   estado: String(mascota.estado ?? "Activo"),
+                  fotoURL: String(mascota.fotoURL ?? ""),
               }
             : {
                   ...FORMULARIO_INICIAL,
@@ -133,6 +136,19 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
+    const handleSeleccionarFoto = async (e) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = "";
+        if (!archivo) return;
+
+        try {
+            const fotoURL = await resizeImageToBase64(archivo, { maxSize: 480, quality: 0.82 });
+            setFormData((prev) => ({ ...prev, fotoURL }));
+        } catch (error) {
+            Swal.fire("No se pudo cargar la foto", error.message || "Selecciona un archivo de imagen válido.", "error");
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         const validacion = validarFormularioMascota(formData);
@@ -178,6 +194,7 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
     };
 
     const configEspecie = obtenerEspecie(formData.especie);
+    const IconoEspecie = configEspecie.icon;
     const esOtroSeleccionado =
         formData.especie === "Otro" ||
         (Boolean(formData.especie) && !ESPECIE_IDS.includes(formData.especie));
@@ -222,10 +239,49 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
             inicial={inicial}
             avatarBg={configEspecie.bg}
             IconoEspecie={configEspecie.icon}
+            fotoURL={formData.fotoURL}
             onCerrar={intentarCerrar}
             formRef={formRef}
         >
             <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 sm:p-6 space-y-6">
+                <section className="flex flex-col gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4 sm:flex-row sm:items-center">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
+                        {formData.fotoURL ? (
+                            <img src={formData.fotoURL} alt={`Foto de ${formData.nombre || "la mascota"}`} className="h-full w-full object-cover" />
+                        ) : (
+                            <IconoEspecie className="h-8 w-8 text-gray-400" />
+                        )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-gray-800">Foto de la mascota</p>
+                        <p className="mt-1 text-xs text-gray-500">Elige una imagen para identificarla en su tarjeta y ficha.</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <label
+                                htmlFor="fotoMascota"
+                                className="cursor-pointer rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                            >
+                                {formData.fotoURL ? "Cambiar foto" : "Agregar foto"}
+                            </label>
+                            {formData.fotoURL && (
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData((prev) => ({ ...prev, fotoURL: "" }))}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-600 transition hover:bg-white"
+                                >
+                                    Quitar foto
+                                </button>
+                            )}
+                            <input
+                                id="fotoMascota"
+                                type="file"
+                                accept="image/*"
+                                onChange={handleSeleccionarFoto}
+                                className="sr-only"
+                            />
+                        </div>
+                    </div>
+                </section>
+
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
                         <FaPaw className="text-blue-600 w-4 h-4" />

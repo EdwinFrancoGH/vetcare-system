@@ -34,8 +34,18 @@ export const validarMascota = (datos) => {
         propietario,
         telefono,
         direccion,
-        estado
+        estado,
+        fotoURL,
     } = datos;
+
+    if (fotoURL) {
+        if (typeof fotoURL !== "string" || fotoURL.length > 700_000) {
+            return "La foto de la mascota es demasiado grande.";
+        }
+        if (!/^data:image\/(jpeg|png|webp);base64,/i.test(fotoURL)) {
+            return "El formato de la foto de la mascota no es válido.";
+        }
+    }
 
     if (!nombre || nombre.trim() === "") {
         return "El nombre es obligatorio.";

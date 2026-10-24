@@ -23,9 +23,13 @@ export default function FichaEncabezado({ mascota, esCliente, estadoClinico, onE
             <div className="p-6 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="flex items-center gap-4 sm:gap-5 min-w-0">
                     <div
-                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center font-bold text-3xl shrink-0 border-2 ${espConfig.bg} shadow-inner transition`}
+                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center font-bold text-3xl shrink-0 overflow-hidden border-2 ${espConfig.bg} shadow-inner transition`}
                     >
-                        <IconoEspecie className="w-10 h-10 sm:w-12 sm:h-12" />
+                        {mascota.fotoURL ? (
+                            <img src={mascota.fotoURL} alt={`Foto de ${mascota.nombre}`} className="h-full w-full object-cover" />
+                        ) : (
+                            <IconoEspecie className="w-10 h-10 sm:w-12 sm:h-12" />
+                        )}
                     </div>
 
                     <div className="min-w-0 flex-1">
