@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { crearVacuna, actualizarVacuna } from "../../services/vacunas.service";
 
 export default function VacunaForm({ vacuna, mascotas, onClose, onSuccess }) {
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/El_Salvador" }).format(new Date());
+  const modoEdicion = Boolean(vacuna);
+
   const [formData, setFormData] = useState({
     mascotaId: "",
     nombre: "",
@@ -148,6 +151,7 @@ export default function VacunaForm({ vacuna, mascotas, onClose, onSuccess }) {
             name="proximaFecha"
             value={formData.proximaFecha}
             onChange={handleChange}
+            min={modoEdicion ? undefined : hoy}
             className="w-full border rounded-lg px-3 py-2"
           />
         </div>

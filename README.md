@@ -121,17 +121,13 @@ npm install
 
 Configura las variables de Firebase en `mobile/.env`. Confirma los nombres exactos de las variables con los archivos de configuración del proyecto. No subas este archivo a GitHub.
 
-Revisa la URL del backend en:
+La URL del backend se configura en `mobile/src/config/api.js`. Por defecto, Android usa `10.0.2.2:5000` para el emulador y web/iOS usan `localhost:5000`. Para un teléfono Android físico, define la IP local de la computadora en `mobile/.env`:
 
-```text
-mobile/src/config/api.js
+```env
+EXPO_PUBLIC_API_URL=http://192.168.1.135:5000
 ```
 
-Para utilizar el emulador Android de Android Studio, la URL debe apuntar al equipo anfitrión:
-
-```javascript
-export const API_URL = 'http://10.0.2.2:5000';
-```
+Sustituye la IP de ejemplo por la IP actual de la computadora que ejecuta el backend. Reinicia Expo después de cambiar esta variable. Ambos dispositivos deben estar en la misma red y el backend debe seguir ejecutándose en el puerto `5000`.
 
 Inicia Expo:
 

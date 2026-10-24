@@ -9,12 +9,19 @@ import {
 
 import { validarVacuna } from "../validators/vacuna.validator.js";
 
-import { obtenerPorId as obtenerMascotaPorId } from "../services/mascotas.service.js";
+import { obtenerPorId as obtenerMascotaPorId, obtenerPorPropietario } from "../services/mascotas.service.js";
 
 // Obtener todas las vacunas
 export const obtenerVacunas = async (req, res) => {
     try {
-        const vacunas = await obtenerTodas();
+        let vacunas = await obtenerTodas();
+
+        // Corrección de seguridad: si es Cliente, solo puede consultar vacunas de sus mascotas
+        if (req.userRole === "Cliente") {
+            const misMascotas = await obtenerPorPropietario(req.user.uid);
+            const idsMascotas = new Set(misMascotas.map(m => m.id));
+            vacunas = vacunas.filter(v => idsMascotas.has(v.mascotaId));
+        }
 
         res.json({
             ok: true,

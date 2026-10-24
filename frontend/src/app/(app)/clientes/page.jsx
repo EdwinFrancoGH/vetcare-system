@@ -162,7 +162,7 @@ function ClientesPage() {
                         <div>
                           <p className="font-semibold text-zinc-800">{c.nombre}</p>
                           <p className="text-xs text-zinc-500 mt-0.5">
-                            Registrado: {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Desconocido'}
+                            Registrado: {c.createdAt ? new Date(c.createdAt).toLocaleDateString('es-SV') : 'Desconocido'}
                           </p>
                         </div>
                       </div>
@@ -187,14 +187,16 @@ function ClientesPage() {
                       <button 
                         onClick={() => handleEdit(c)}
                         className="p-2 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Editar"
+                        title="Editar cliente"
+                        aria-label="Editar cliente"
                       >
                         <Edit2 size={18} />
                       </button>
                       <button 
                         onClick={() => handleDelete(c.id, c.nombre)}
                         className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar"
+                        title="Eliminar cliente"
+                        aria-label="Eliminar cliente"
                       >
                         <Trash2 size={18} />
                       </button>

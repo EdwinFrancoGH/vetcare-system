@@ -1,52 +1,25 @@
-/*"use client";
-
-export default function MascotaForm({ onClose }) {
-
-    return (
-
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6 border">
-
-            <h2 className="text-2xl font-bold mb-4">
-                Nueva Mascota
-            </h2>
-
-            <p className="text-gray-600 mb-4">
-                Aquí construiremos el formulario de registro.
-            </p>
-
-            <div className="flex gap-3">
-
-                <button
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                >
-                    Guardar
-                </button>
-
-                <button
-                    onClick={onClose}
-                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                >
-                    Cancelar
-                </button>
-
-            </div>
-
-        </div>
-
-    );
-
-}*/
 "use client";
 
-import { useEffect, useState } from "react";
-import { crearMascota,actualizarMascota } from "../../services/mascotas.service";
+import { useEffect, useState, useRef } from "react";
+import { FaPaw, FaHeartbeat, FaUser, FaCheckCircle } from "react-icons/fa";
+import Swal from "sweetalert2";
+
+import { crearMascota, actualizarMascota } from "../../services/mascotas.service";
 import { useAuth } from "../../context/AuthContext";
+import { hoyISO, calcularEdadYMeses } from "../../utils/citas";
+import { ESPECIE_IDS, obtenerEspecie } from "../../utils/especies";
+import {
+    REGEX_LETRAS,
+    REGEX_TELEFONO_INPUT,
+    validarFormularioMascota,
+} from "../../utils/validacionesMascota";
 
-export default function MascotaForm({ mascota, onClose, onSuccess }) {
-  const { userRole, userData } = useAuth();
-  const esCliente = userRole === "Cliente";
+import ModalFormulario from "./formulario/ModalFormulario";
+import CampoFormulario from "./formulario/CampoFormulario";
+import SelectorEspecie from "./formulario/SelectorEspecie";
+import SelectorSexo from "./formulario/SelectorSexo";
 
-  const [formData, setFormData] = useState({
+const FORMULARIO_INICIAL = {
     nombre: "",
     especie: "",
     raza: "",
@@ -59,321 +32,389 @@ export default function MascotaForm({ mascota, onClose, onSuccess }) {
     telefono: "",
     direccion: "",
     estado: "Activo",
-  });
-
-
-//automáticamente llena todos los campos.
-useEffect(() => {
-
-    if (mascota) {
-
-        setFormData({
-            nombre: mascota.nombre || "",
-            especie: mascota.especie || "",
-            raza: mascota.raza || "",
-            sexo: mascota.sexo || "",
-            edad: mascota.edad || "",
-            peso: mascota.peso || "",
-            color: mascota.color || "",
-            fechaNacimiento: mascota.fechaNacimiento || "",
-            propietario: mascota.propietario || "",
-            telefono: mascota.telefono || "",
-            direccion: mascota.direccion || "",
-            estado: mascota.estado || "Activo",
-        });
-
-    } else if (esCliente) {
-        // Un Cliente registra mascotas a su nombre: se precarga su nombre.
-        setFormData((prev) => ({
-            ...prev,
-            propietario: prev.propietario || userData?.name || "",
-            telefono: prev.telefono || userData?.phone || userData?.telefono || "",
-        }));
-    }
-
-}, [mascota, esCliente, userData]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-
-//AGREGANDO EL HANDLE SUBMIT
-/*
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Validación básica
-    if (!formData.nombre || !formData.especie || !formData.propietario) {
-        alert("Complete los campos obligatorios.");
-        return;
-    }
-
-    try {
-        await crearMascota(formData);
-
-        alert("Mascota registrada correctamente.");
-
-        // Recargar la tabla
-        onSuccess();
-
-        // Cerrar formulario
-        onClose();
-
-    } catch (error) {
-        console.error(error);
-
-        alert("Error al registrar la mascota.");
-    }
-};*/
-const handleSubmit = async (e) => {
-
-    e.preventDefault();
-
-    if (
-        !formData.nombre ||
-        !formData.especie ||
-        !formData.propietario
-    ) {
-
-        alert("Complete los campos obligatorios.");
-        return;
-
-    }
-
-    try {
-
-        if (mascota) {
-
-            await actualizarMascota(mascota.id, formData);
-
-            alert("Mascota actualizada correctamente.");
-
-        } else {
-
-            await crearMascota(formData);
-
-            alert("Mascota registrada correctamente.");
-
-        }
-/*
- * Actualiza la tabla de mascotas.
- * Se utiliza await para esperar que termine
- * la consulta al backend antes de continuar.
- * Recargar la lista de mascotas antes de cerrar el formulario
- */
-        await onSuccess();
-        onClose();
-
-    } catch (error) {
-
-        console.error(error);
-
-        alert(error.response?.data?.message || "Ocurrió un error.");
-
-    }
-
 };
 
-  return (
-    <form
-    onSubmit={handleSubmit}
-    className="bg-white rounded-xl shadow-lg p-6 mb-6"
-    >
+export default function MascotaForm({ mascota, onClose, onSuccess }) {
+    const { userRole, userData } = useAuth();
+    const esCliente = userRole === "Cliente";
+    const hoy = hoyISO();
 
-     <h2 className="text-2xl font-bold text-gray-800 mb-6">
-        {mascota ? "Editar Mascota" : "Nueva Mascota"}
-    </h2>
+    const formRef = useRef(null);
+    const initialDataRef = useRef(null);
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-600">
+    const [formData, setFormData] = useState(FORMULARIO_INICIAL);
+    const [guardando, setGuardando] = useState(false);
+    const [errores, setErrores] = useState({});
+    const [especieOtroTexto, setEspecieOtroTexto] = useState("");
 
-        <div>
-          <label className="block mb-1 font-medium">Nombre</label>
+    useEffect(() => {
+        const ec = mascota ? calcularEdadYMeses(mascota.fechaNacimiento, hoy).edad : "";
+        const init = mascota
+            ? {
+                  nombre: String(mascota.nombre ?? ""),
+                  especie: String(mascota.especie ?? ""),
+                  raza: String(mascota.raza ?? ""),
+                  sexo: String(mascota.sexo ?? ""),
+                  edad: ec !== "" ? ec : (mascota.edad ?? ""),
+                  peso: mascota.peso != null ? String(mascota.peso) : "",
+                  color: String(mascota.color ?? ""),
+                  fechaNacimiento: String(mascota.fechaNacimiento ?? ""),
+                  propietario: String(mascota.propietario ?? ""),
+                  telefono: String(mascota.telefono ?? ""),
+                  direccion: String(mascota.direccion ?? ""),
+                  estado: String(mascota.estado ?? "Activo"),
+              }
+            : {
+                  ...FORMULARIO_INICIAL,
+                  propietario: esCliente ? String(userData?.name ?? "") : "",
+                  telefono: esCliente ? String(userData?.phone ?? userData?.telefono ?? "") : "",
+              };
+        setFormData(init);
+        initialDataRef.current = init;
+        setErrores({});
+        setEspecieOtroTexto(
+            mascota?.especie && !ESPECIE_IDS.includes(mascota.especie) && mascota.especie !== "Otro"
+                ? String(mascota.especie)
+                : "",
+        );
+    }, [mascota, esCliente, userData, hoy]);
 
-          <input
-            type="text"
-            name="nombre"
-            value={formData.nombre}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
+    const esModificado = () => {
+        if (!initialDataRef.current) return false;
+        return Object.keys(initialDataRef.current).some(
+            (k) =>
+                String(formData[k] ?? "").trim() !== String(initialDataRef.current[k] ?? "").trim(),
+        );
+    };
 
-        <div>
-          <label className="block mb-1 font-medium">Especie</label>
+    const intentarCerrar = async () => {
+        if (guardando) return;
+        if (esModificado()) {
+            const res = await Swal.fire({
+                title: "¿Descartar los cambios?",
+                text: "Hay información modificada que no se ha guardado. ¿Deseas salir?",
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonColor: "#dc2626",
+                cancelButtonColor: "#6b7280",
+                confirmButtonText: "Sí, descartar",
+                cancelButtonText: "Continuar editando",
+            });
+            if (res.isConfirmed) onClose();
+        } else {
+            onClose();
+        }
+    };
 
-          <select
-            name="especie"
-            value={formData.especie}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          >
-            <option value="">Seleccione</option>
-            <option value="Perro">Perro</option>
-            <option value="Gato">Gato</option>
-            <option value="Ave">Ave</option>
-            <option value="Conejo">Conejo</option>
-            <option value="Otro">Otro</option>
-          </select>
-        </div>
+    const limpiarError = (campo) => {
+        setErrores((prev) => {
+            if (!prev[campo]) return prev;
+            const nuevo = { ...prev };
+            delete nuevo[campo];
+            return nuevo;
+        });
+    };
 
-        <div>
-          <label className="block mb-1 font-medium">Raza</label>
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        limpiarError(name);
+        if (
+            (name === "nombre" || name === "color" || name === "propietario") &&
+            !REGEX_LETRAS.test(value)
+        )
+            return;
+        if (name === "telefono" && !REGEX_TELEFONO_INPUT.test(value)) return;
 
-          <input
-            type="text"
-            name="raza"
-            value={formData.raza}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
+        if (name === "fechaNacimiento") {
+            const { edad } = calcularEdadYMeses(value, hoy);
+            setFormData((prev) => ({ ...prev, fechaNacimiento: value, edad }));
+            return;
+        }
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    };
 
-        <div>
-          <label className="block mb-1 font-medium">Sexo</label>
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        const validacion = validarFormularioMascota(formData);
+        if (!validacion.esValido) {
+            setErrores(validacion.errores);
+            if (validacion.primerCampo) {
+                const el = formRef.current?.querySelector(`[name="${validacion.primerCampo}"]`);
+                if (el) {
+                    el.focus?.();
+                    el.scrollIntoView?.({ behavior: "smooth", block: "center" });
+                }
+                Swal.fire(validacion.tituloSwal, validacion.primerMensaje, "warning");
+            }
+            return;
+        }
 
-          <select
-            name="sexo"
-            value={formData.sexo}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          >
-            <option value="">Seleccione</option>
-            <option value="Macho">Macho</option>
-            <option value="Hembra">Hembra</option>
-          </select>
-        </div>
+        try {
+            setGuardando(true);
+            const payload = {
+                ...formData,
+                peso: Number(formData.peso),
+                edad: Number(formData.edad),
+            };
+            if (mascota) {
+                await actualizarMascota(mascota.id, payload);
+                await Swal.fire("¡Éxito!", "Mascota actualizada correctamente.", "success");
+            } else {
+                await crearMascota(payload);
+                await Swal.fire("¡Éxito!", "Mascota registrada correctamente.", "success");
+            }
+            await onSuccess();
+            onClose();
+        } catch (err) {
+            console.error("Error al guardar mascota:", err);
+            Swal.fire(
+                "Error",
+                err.response?.data?.message || "Ocurrió un error al guardar la mascota.",
+                "error",
+            );
+        } finally {
+            setGuardando(false);
+        }
+    };
 
-        <div>
-          <label className="block mb-1 font-medium">Edad</label>
+    const configEspecie = obtenerEspecie(formData.especie);
+    const esOtroSeleccionado =
+        formData.especie === "Otro" ||
+        (Boolean(formData.especie) && !ESPECIE_IDS.includes(formData.especie));
 
-          <input
-            type="number"
-            name="edad"
-            value={formData.edad}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
+    const handleSeleccionarEspecie = (id) => {
+        limpiarError("especie");
+        setFormData((prev) => ({
+            ...prev,
+            especie: id === "Otro" ? especieOtroTexto.trim() || "Otro" : id,
+        }));
+    };
 
-        <div>
-          <label className="block mb-1 font-medium">Peso (kg)</label>
+    const handleCambioOtro = (e) => {
+        if (!REGEX_LETRAS.test(e.target.value)) return;
+        setEspecieOtroTexto(e.target.value);
+        setFormData((prev) => ({ ...prev, especie: e.target.value.trim() || "Otro" }));
+        limpiarError("especie");
+    };
 
-          <input
-            type="number"
-            step="0.1"
-            name="peso"
-            value={formData.peso}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
+    const inicial = formData.nombre ? formData.nombre.trim().charAt(0).toUpperCase() : "";
+    const subtituloEnVivo = `${formData.especie || "Especie"} · ${formData.raza || "Raza"}`;
 
-        <div>
-          <label className="block mb-1 font-medium">Color</label>
+    let chipEdad = null;
+    if (formData.fechaNacimiento) {
+        const { edad, textoMeses: tm } = calcularEdadYMeses(formData.fechaNacimiento, hoy);
+        chipEdad =
+            edad === 0
+                ? `Tiene ${(tm || "").replace(/[()]/g, "").trim() || "0 meses"}`
+                : edad !== ""
+                  ? `Tiene ${edad} ${edad === 1 ? "año" : "años"}`
+                  : null;
+    }
 
-          <input
-            type="text"
-            name="color"
-            value={formData.color}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 font-medium">Fecha de Nacimiento</label>
-
-          <input
-            type="date"
-            name="fechaNacimiento"
-            value={formData.fechaNacimiento}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 font-medium">Propietario</label>
-
-          <input
-            type="text"
-            name="propietario"
-            value={formData.propietario}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 font-medium">Teléfono</label>
-
-          <input
-            type="text"
-            name="telefono"
-            value={formData.telefono}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-        </div>
-
-      </div>
-
-      <div className="mt-4">
-
-        <label className="block mb-1 font-medium text-gray-600">Dirección</label>
-
-        <textarea
-          name="direccion"
-          value={formData.direccion}
-          onChange={handleChange}
-          rows="3"
-          className="w-full border rounded-lg px-3 py-2 text-gray-600"
-        />
-
-      </div>
-
-      <div className="mt-4">
-
-        <label className="block mb-1 font-medium text-gray-600">Estado</label>
-
-        <select
-          name="estado"
-          value={formData.estado}
-          onChange={handleChange}
-          className="w-full border rounded-lg px-3 py-2 text-gray-600"
+    return (
+        <ModalFormulario
+            titulo={
+                mascota
+                    ? `Editar ${formData.nombre || mascota.nombre || "mascota"}`
+                    : "Nueva mascota"
+            }
+            subtitulo={subtituloEnVivo}
+            inicial={inicial}
+            avatarBg={configEspecie.bg}
+            IconoEspecie={configEspecie.icon}
+            onCerrar={intentarCerrar}
+            formRef={formRef}
         >
-          <option value="Activo">Activo</option>
-          <option value="En tratamiento">En tratamiento</option>
-          <option value="Inactivo">Inactivo</option>
-        </select>
+            <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 sm:p-6 space-y-6">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <FaPaw className="text-blue-600 w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Datos de la mascota
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CampoFormulario
+                            label="Nombre"
+                            name="nombre"
+                            value={formData.nombre}
+                            onChange={handleChange}
+                            placeholder="Ej: Max"
+                            error={errores.nombre}
+                            requerido
+                        />
+                        <CampoFormulario
+                            label="Color"
+                            name="color"
+                            value={formData.color}
+                            onChange={handleChange}
+                            placeholder="Ej: Dorado"
+                            error={errores.color}
+                            requerido
+                        />
+                        <SelectorEspecie
+                            especie={formData.especie}
+                            esOtroSeleccionado={esOtroSeleccionado}
+                            onSeleccionarEspecie={handleSeleccionarEspecie}
+                            especieOtroTexto={especieOtroTexto}
+                            onChangeOtro={handleCambioOtro}
+                            error={errores.especie}
+                        />
+                        <CampoFormulario
+                            label="Raza"
+                            name="raza"
+                            value={formData.raza}
+                            onChange={handleChange}
+                            placeholder="Ej: Golden Retriever"
+                            error={errores.raza}
+                            requerido
+                        />
+                        <SelectorSexo
+                            sexo={formData.sexo}
+                            onSeleccionarSexo={(s) => {
+                                setFormData((p) => ({ ...p, sexo: s }));
+                                limpiarError("sexo");
+                            }}
+                            error={errores.sexo}
+                        />
+                    </div>
+                </div>
 
-      </div>
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <FaHeartbeat className="text-red-500 w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Salud
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CampoFormulario
+                            label="Fecha de nacimiento"
+                            name="fechaNacimiento"
+                            type="date"
+                            max={hoy}
+                            value={formData.fechaNacimiento}
+                            onChange={handleChange}
+                            error={errores.fechaNacimiento}
+                            requerido
+                            badge={
+                                chipEdad && (
+                                    <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                                        {chipEdad}
+                                    </span>
+                                )
+                            }
+                        />
+                        <CampoFormulario
+                            label="Peso (kg)"
+                            name="peso"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={formData.peso}
+                            onChange={handleChange}
+                            onKeyDown={(e) =>
+                                ["-", "+", "e", "E"].includes(e.key) && e.preventDefault()
+                            }
+                            placeholder="Ej: 12.5"
+                            error={errores.peso}
+                            requerido
+                        />
+                    </div>
+                </div>
 
-      <div className="flex gap-3 mt-6">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <FaUser className="text-blue-600 w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Propietario y Contacto
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CampoFormulario
+                            label="Propietario"
+                            name="propietario"
+                            value={formData.propietario}
+                            onChange={handleChange}
+                            placeholder="Nombre del dueño"
+                            error={errores.propietario}
+                            requerido
+                        />
+                        <CampoFormulario
+                            label="Teléfono"
+                            name="telefono"
+                            type="tel"
+                            inputMode="tel"
+                            maxLength={15}
+                            value={formData.telefono}
+                            onChange={handleChange}
+                            placeholder="7123-4567 o +503 7123-4567"
+                            error={errores.telefono}
+                            requerido
+                        />
+                        <CampoFormulario
+                            label="Dirección"
+                            name="direccion"
+                            value={formData.direccion}
+                            onChange={handleChange}
+                            placeholder="Ej: Col. Escalón, Pasaje 2, San Salvador"
+                            error={errores.direccion}
+                            className="col-span-1 md:col-span-2"
+                            requerido
+                        />
+                    </div>
+                </div>
 
-        <button
-          type="submit"
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg"
-        >
-          Guardar
-        </button>
+                {!esCliente && (
+                    <div className="space-y-3 pt-2">
+                        <label className="text-sm font-medium text-gray-700 block">
+                            Estado del registro
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 max-w-xs">
+                            {["Activo", "Inactivo"].map((est) => (
+                                <button
+                                    key={est}
+                                    type="button"
+                                    onClick={() =>
+                                        setFormData((prev) => ({ ...prev, estado: est }))
+                                    }
+                                    className={`py-2 px-3 rounded-lg text-sm font-semibold border transition ${formData.estado === est ? (est === "Activo" ? "bg-blue-50 text-blue-700 border-blue-600 shadow-sm" : "bg-gray-100 text-gray-700 border-gray-400 shadow-sm") : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
+                                >
+                                    {est}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg"
-        >
-          Cancelar
-        </button>
-
-      </div>
-
-    </form>
-  );
+                <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button
+                        type="button"
+                        onClick={intentarCerrar}
+                        disabled={guardando}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={guardando}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {guardando ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Guardando...</span>
+                            </>
+                        ) : (
+                            <>
+                                <FaCheckCircle className="w-4 h-4" />
+                                <span>{mascota ? "Actualizar mascota" : "Guardar mascota"}</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </form>
+        </ModalFormulario>
+    );
 }

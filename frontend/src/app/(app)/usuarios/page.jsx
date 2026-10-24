@@ -122,7 +122,28 @@ export default function UsuariosPage() {
     }
   };
 
-  const handleRoleChange = async (uid, newRole) => {
+  const handleRoleChange = async (uid, newRole, userName) => {
+    const esAdmin = newRole === 'Administrador';
+    const textoConfirmacion = esAdmin
+      ? `¿Cambiar el rol de ${userName} a ${newRole}? Advertencia: este usuario tendrá acceso total al sistema.`
+      : `¿Cambiar el rol de ${userName} a ${newRole}?`;
+
+    const result = await Swal.fire({
+      title: '¿Confirmar cambio de rol?',
+      text: textoConfirmacion,
+      icon: esAdmin ? 'warning' : 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#4f46e5',
+      cancelButtonColor: '#71717a',
+      confirmButtonText: 'Sí, cambiar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) {
+      setUsers(prev => [...prev]);
+      return;
+    }
+
     try {
       await actualizarRolUsuario(uid, newRole);
 
@@ -259,7 +280,7 @@ export default function UsuariosPage() {
                         <Shield size={16} className="text-zinc-400" />
                         <select
                           value={u.role}
-                          onChange={(e) => handleRoleChange(u.uid, e.target.value)}
+                          onChange={(e) => handleRoleChange(u.uid, e.target.value, u.name || u.email)}
                           disabled={u.uid === user.uid || isMasterAdmin}
                           className={`text-xs font-semibold px-2 py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${roleStyles[u.role] || 'bg-zinc-100 text-zinc-700'} ${u.uid === user.uid || isMasterAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
@@ -290,6 +311,7 @@ export default function UsuariosPage() {
                           disabled={u.uid === user.uid || isMasterAdmin}
                           className={`p-2 rounded-lg transition-colors ${u.uid === user.uid || isMasterAdmin ? 'text-zinc-300 cursor-not-allowed' : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'}`}
                           title={isMasterAdmin ? "No se puede eliminar el superadministrador" : u.uid === user.uid ? "No puedes eliminarte a ti mismo" : "Eliminar usuario"}
+                          aria-label={isMasterAdmin ? "No se puede eliminar el superadministrador" : u.uid === user.uid ? "No puedes eliminarte a ti mismo" : "Eliminar usuario"}
                         >
                           <Trash2 size={18} />
                         </button>

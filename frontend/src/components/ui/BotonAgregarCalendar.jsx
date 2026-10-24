@@ -2,9 +2,25 @@
 
 import { construirEnlaceGoogleCalendar } from "../../utils/calendario";
 
-export default function BotonAgregarCalendar({ titulo, fecha, detalles, ubicacion, className }) {
+export default function BotonAgregarCalendar({
+    titulo,
+    fecha,
+    detalles,
+    ubicacion,
+    hora,
+    duracionMinutos,
+    className,
+    children,
+}) {
 
-    const enlace = construirEnlaceGoogleCalendar({ titulo, fecha, detalles, ubicacion });
+    const enlace = construirEnlaceGoogleCalendar({
+        titulo,
+        fecha,
+        detalles,
+        ubicacion,
+        hora,
+        duracionMinutos,
+    });
 
     if (!enlace) {
         return null;
@@ -20,7 +36,7 @@ export default function BotonAgregarCalendar({ titulo, fecha, detalles, ubicacio
                 "inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
             }
         >
-            + Agregar a Calendar
+            {children || "+ Agregar a Calendar"}
         </a>
     );
 
