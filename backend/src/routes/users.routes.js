@@ -1,6 +1,6 @@
 import express from 'express';
 import { verifyToken, verifyAdmin } from '../middlewares/auth.middleware.js';
-import { getUsers, updateUserRole, deleteUser, createUser, updateUser, updateProfile } from '../controllers/users.controller.js';
+import { getProfile, getUsers, updateUserRole, deleteUser, createUser, updateUser, updateProfile } from '../controllers/users.controller.js';
 
 const router = express.Router();
 
@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(verifyToken);
 
 // Rutas que no requieren admin (pero sí autenticación)
+router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
 
 // Todas las rutas debajo requieren ser Admin

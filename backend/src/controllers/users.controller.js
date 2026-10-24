@@ -1,5 +1,24 @@
 import { auth, db } from '../config/firebase.js';
 
+// Obtener el perfil del usuario autenticado
+export const getProfile = async (req, res) => {
+    try {
+        const uid = req.user.uid;
+        const userDoc = await db.collection('usuarios').doc(uid).get();
+
+        if (!userDoc.exists) {
+            return res.status(404).json({ error: 'No se encontró el perfil del usuario.' });
+        }
+
+        res.status(200).json({
+            user: { uid, ...userDoc.data() }
+        });
+    } catch (error) {
+        console.error('Error al obtener el perfil:', error);
+        res.status(500).json({ error: 'No se pudo obtener el perfil del usuario.' });
+    }
+};
+
 // Obtener todos los usuarios
 export const getUsers = async (req, res) => {
     try {

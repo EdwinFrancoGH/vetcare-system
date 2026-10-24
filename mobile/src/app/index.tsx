@@ -231,9 +231,13 @@ export default function LoginScreen() {
         // ERROR DEL BACKEND / RED
         // ==========================================
 
+        const backendMessage = String(error?.message || '');
+        const isConnectionError = /fetch failed|network request failed|connectexception/i.test(backendMessage);
+
         setError(
-          error?.message ||
-          'No se pudo conectar con el servidor.'
+          isConnectionError
+            ? 'No se pudo conectar con el servidor. Verifica que el backend esté activo y que la dirección configurada en mobile/.env sea correcta.'
+            : backendMessage || 'No se pudo conectar con el servidor.'
         );
       }
 
@@ -474,8 +478,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: 24,
-    paddingTop: 52,
-    paddingBottom: 40,
+    paddingTop: 28,
+    paddingBottom: 28,
   },
 
   /* =========================
@@ -484,22 +488,22 @@ const styles = StyleSheet.create({
 
   header: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
 
   logoCircle: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     backgroundColor: '#EDE9FE',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 18,
+    marginBottom: 12,
   },
 
   logo: {
-    width: 76,
-    height: 76,
+    width: 104,
+    height: 104,
   },
 
   title: {
@@ -507,11 +511,11 @@ const styles = StyleSheet.create({
     fontSize: 42,
     fontWeight: '400',
     color: colors.primary,
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   subtitle: {
-    fontSize: 17,
+    fontSize: 18,
     color: '#4B5563',
     textAlign: 'center',
   },
@@ -527,10 +531,10 @@ const styles = StyleSheet.create({
   },
 
   heading: {
-    fontSize: 27,
+    fontSize: 26,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 26,
+    marginBottom: 20,
     textAlign: 'center',
   },
 
@@ -538,7 +542,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 9,
+    marginBottom: 8,
   },
 
   inputContainer: {
@@ -547,9 +551,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    borderRadius: 14,
+    borderRadius: 15,
     backgroundColor: '#FFFFFF',
-    marginBottom: 24,
+    marginBottom: 18,
   },
 
   inputIcon: {
@@ -586,7 +590,7 @@ const styles = StyleSheet.create({
   forgotButton: {
     alignSelf: 'flex-end',
     marginTop: 0,
-    marginBottom: 24,
+    marginBottom: 18,
   },
 
   forgotText: {
@@ -606,8 +610,8 @@ const styles = StyleSheet.create({
 
   error: {
     color: colors.error,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 22,
   },
 
   /* =========================
@@ -616,7 +620,7 @@ const styles = StyleSheet.create({
 
   loginButton: {
     height: 62,
-    borderRadius: 14,
+    borderRadius: 15,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -643,7 +647,7 @@ const styles = StyleSheet.create({
   registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 38,
+    marginTop: 26,
   },
 
   registerText: {
