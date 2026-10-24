@@ -7,6 +7,7 @@ import VacunasTable from "../../../components/vacunas/VacunasTable";
 import VacunaForm from "../../../components/vacunas/VacunaForm";
 import ConfirmModal from "../../../components/ui/ConfirmModal";
 import RequireRole from "../../../components/auth/RequireRole";
+import Swal from "sweetalert2";
 
 function VacunasPage() {
 
@@ -37,6 +38,7 @@ function VacunasPage() {
         } catch (error) {
 
             console.error("Error al cargar vacunas:", error);
+            Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
 
         }
 

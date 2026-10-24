@@ -36,6 +36,15 @@ function fechaHoyISO() {
     return new Intl.DateTimeFormat("en-CA", { timeZone: "America/El_Salvador" }).format(new Date());
 }
 
+function horaActualElSalvador() {
+    return new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/El_Salvador",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+    }).format(new Date());
+}
+
 function ordenarPorFechaHora(citas) {
     return [...citas].sort((a, b) => {
         const claveA = `${a.fecha || ""} ${a.hora || ""}`;
@@ -252,6 +261,18 @@ export const obtenerCitaPorId = async (req, res) => {
             });
         }
 
+        // Corrección de seguridad: si es Cliente, verificar que la cita pertenezca a una de sus mascotas
+        if (req.userRole === "Cliente") {
+            const mascota = await obtenerMascotaPorId(cita.mascotaId);
+
+            if (!mascota || mascota.propietarioUid !== req.user.uid) {
+                return res.status(404).json({
+                    ok: false,
+                    message: "Cita no encontrada."
+                });
+            }
+        }
+
         res.status(200).json({
             ok: true,
             message: "Cita obtenida correctamente.",
@@ -279,6 +300,16 @@ export const crearCita = async (req, res) => {
             return res.status(400).json({
                 ok: false,
                 message: errorValidacion
+            });
+        }
+
+        // Validación: rechazar citas en fecha u hora pasada
+        const hoy = fechaHoyISO();
+        const horaActual = horaActualElSalvador();
+        if (req.body.fecha < hoy || (req.body.fecha === hoy && req.body.hora < horaActual)) {
+            return res.status(400).json({
+                ok: false,
+                message: "No se puede agendar una cita en una fecha pasada."
             });
         }
 
@@ -318,6 +349,16 @@ export const reservarCita = async (req, res) => {
             return res.status(400).json({
                 ok: false,
                 message: errorValidacion
+            });
+        }
+
+        // Validación: rechazar citas en fecha u hora pasada
+        const hoy = fechaHoyISO();
+        const horaActual = horaActualElSalvador();
+        if (req.body.fecha < hoy || (req.body.fecha === hoy && req.body.hora < horaActual)) {
+            return res.status(400).json({
+                ok: false,
+                message: "No se puede agendar una cita en una fecha pasada."
             });
         }
 
@@ -443,6 +484,26 @@ export const cancelarCita = async (req, res) => {
             return res.status(404).json({
                 ok: false,
                 message: "Cita no encontrada."
+            });
+        }
+
+        // Corrección de seguridad: si es Cliente, verificar que la cita pertenezca a una de sus mascotas
+        if (req.userRole === "Cliente") {
+            const mascota = await obtenerMascotaPorId(cita.mascotaId);
+
+            if (!mascota || mascota.propietarioUid !== req.user.uid) {
+                return res.status(404).json({
+                    ok: false,
+                    message: "Cita no encontrada."
+                });
+            }
+        }
+
+        // Validación: no permitir cancelar una cita con estado cancelada o completada
+        if (cita.estado === "cancelada" || cita.estado === "completada") {
+            return res.status(400).json({
+                ok: false,
+                message: `No se puede cancelar una cita con estado '${cita.estado}'.`
             });
         }
 

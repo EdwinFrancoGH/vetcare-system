@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { crearHistorial, actualizarHistorial } from "../../services/historial.service";
 
 export default function HistorialForm({ historial, mascotas, onClose, onSuccess }) {
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/El_Salvador" }).format(new Date());
+  const modoEdicion = Boolean(historial);
+
   const [formData, setFormData] = useState({
     mascotaId: "",
     fecha: "",
@@ -179,6 +182,7 @@ export default function HistorialForm({ historial, mascotas, onClose, onSuccess 
             name="proximaCita"
             value={formData.proximaCita}
             onChange={handleChange}
+            min={modoEdicion ? undefined : hoy}
             className="w-full border rounded-lg px-3 py-2"
           />
         </div>

@@ -16,6 +16,8 @@ import inventarioRoutes from "./routes/inventario.routes.js";
 import ventasRoutes from "./routes/ventas.routes.js";
 import reportesRoutes from "./routes/reportes.routes.js";
 import usersRoutes from "./routes/users.routes.js";
+import tiendaRoutes from "./routes/tienda.routes.js";
+import pedidosRoutes from "./routes/pedidos.routes.js";
 
 import { verifyToken, verifyRoles, cargarRol } from "./middlewares/auth.middleware.js";
 
@@ -84,6 +86,8 @@ app.use("/api/productos", verifyToken, SOLO_ADMINISTRACION, productosRoutes);
 app.use("/api/inventario", verifyToken, SOLO_ADMINISTRACION, inventarioRoutes);
 app.use("/api/ventas", verifyToken, SOLO_ADMINISTRACION, ventasRoutes);
 app.use("/api/reportes", verifyToken, SOLO_ADMINISTRACION, reportesRoutes);
+app.use("/api/tienda", verifyToken, cargarRol, tiendaRoutes);
+app.use("/api/pedidos", verifyToken, verifyRoles("Administrador", "Recepcionista"), pedidosRoutes);
 
 app.get("/", (req, res) => {
     res.json({

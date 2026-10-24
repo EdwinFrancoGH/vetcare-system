@@ -41,10 +41,104 @@ export function hoyISO() {
     return new Intl.DateTimeFormat("en-CA", { timeZone: "America/El_Salvador" }).format(new Date());
 }
 
+// Obtiene la hora actual en El Salvador en formato "HH:mm" (24 horas)
+export function horaActualSV() {
+    return new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/El_Salvador",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).format(new Date());
+}
+
+// Determina si una cita se considera "próxima":
+// Estado en ["reservada", "confirmada"] Y (fecha > hoy O (fecha === hoy Y hora > horaActualSV()))
+export function esCitaProxima(cita, hoy = hoyISO(), horaSV = horaActualSV()) {
+    if (!cita) return false;
+    const estadoValido = ["reservada", "confirmada"].includes(cita.estado);
+    if (!estadoValido) return false;
+
+    const fecha = (cita.fecha || "").slice(0, 10);
+    const hora = (cita.hora || "").slice(0, 5);
+
+    if (fecha > hoy) return true;
+    if (fecha === hoy && hora > horaSV) return true;
+
+    return false;
+}
+
+// Calcula la edad en años y meses a partir de la fecha de nacimiento en formato ISO (YYYY-MM-DD)
+export function calcularEdadYMeses(fechaNacISO, hoyFecha = hoyISO()) {
+    if (!fechaNacISO || typeof fechaNacISO !== "string") {
+        return { edad: "", textoMeses: "" };
+    }
+    const [anioNac, mesNac, diaNac] = fechaNacISO.slice(0, 10).split("-").map(Number);
+    const [anioHoy, mesHoy, diaHoy] = hoyFecha.slice(0, 10).split("-").map(Number);
+    if (!anioNac || !mesNac || !diaNac || !anioHoy || !mesHoy || !diaHoy) {
+        return { edad: "", textoMeses: "" };
+    }
+
+    let anios = anioHoy - anioNac;
+    let meses = mesHoy - mesNac;
+    let dias = diaHoy - diaNac;
+
+    if (dias < 0) {
+        meses -= 1;
+    }
+    if (meses < 0) {
+        anios -= 1;
+        meses += 12;
+    }
+
+    if (anios < 0) {
+        return { edad: 0, textoMeses: "(0 meses)" };
+    }
+
+    if (anios === 0) {
+        const totalMeses = Math.max(0, meses);
+        return { edad: 0, textoMeses: `(${totalMeses} ${totalMeses === 1 ? "mes" : "meses"})` };
+    }
+
+    return { edad: anios, textoMeses: "" };
+}
+
+// Formatea la edad de una mascota: "2 años", "1 año", "5 meses"; si no hay fechaNacimiento, usa edadGuardada o "—".
+export function formatearEdad(fechaNacimiento, edadGuardada) {
+    if (fechaNacimiento) {
+        const { edad, textoMeses } = calcularEdadYMeses(fechaNacimiento);
+        if (edad !== "") {
+            if (edad === 0) {
+                const limpio = textoMeses.replace(/[()]/g, "").trim();
+                return limpio || "0 meses";
+            }
+            return `${edad} ${edad === 1 ? "año" : "años"}`;
+        }
+    }
+
+    if (edadGuardada !== undefined && edadGuardada !== null && edadGuardada !== "") {
+        const num = Number(edadGuardada);
+        if (!isNaN(num)) {
+            return `${num} ${num === 1 ? "año" : "años"}`;
+        }
+        return String(edadGuardada);
+    }
+
+    return "—";
+}
+
 export function sumarDiasISO(fechaISO, dias) {
     const fecha = parseFechaISO(fechaISO);
     fecha.setUTCDate(fecha.getUTCDate() + dias);
     return formatearISO(fecha);
+}
+
+// Formatea YYYY-MM-DD a DD/MM/AAAA sin usar new Date para evitar desfases de zona horaria
+export function formatearFechaCorta(iso) {
+    if (!iso || typeof iso !== "string") return "";
+    const parte = iso.slice(0, 10);
+    const [yyyy, mm, dd] = parte.split("-");
+    if (!yyyy || !mm || !dd) return iso;
+    return `${dd}/${mm}/${yyyy}`;
 }
 
 // Devuelve el lunes de la semana que contiene `fechaISO` (o de hoy si se omite)

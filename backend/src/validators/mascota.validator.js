@@ -69,12 +69,31 @@ export const validarMascota = (datos) => {
         return "La fecha de nacimiento es obligatoria.";
     }
 
+    const fechaNac = new Date(fechaNacimiento);
+    if (isNaN(fechaNac.getTime())) {
+        return "La fecha de nacimiento no es válida.";
+    }
+
+    const hoyElSalvador = new Intl.DateTimeFormat("en-CA", { timeZone: "America/El_Salvador" }).format(new Date());
+    const fechaNacString = typeof fechaNacimiento === "string" 
+        ? fechaNacimiento.split("T")[0].trim() 
+        : fechaNac.toISOString().split("T")[0];
+
+    if (fechaNacString > hoyElSalvador) {
+        return "La fecha de nacimiento no puede ser futura.";
+    }
+
     if (!propietario || propietario.trim() === "") {
         return "El propietario es obligatorio.";
     }
 
     if (!telefono || telefono.trim() === "") {
         return "El teléfono es obligatorio.";
+    }
+
+    const TELEFONO_REGEX = /^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/;
+    if (!TELEFONO_REGEX.test(telefono.trim())) {
+        return "El teléfono debe tener 8 dígitos (ej. 7123-4567).";
     }
 
     if (!direccion || direccion.trim() === "") {

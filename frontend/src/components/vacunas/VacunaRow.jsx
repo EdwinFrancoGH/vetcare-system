@@ -17,6 +17,8 @@ export default function VacunaRow({ vacuna, nombreMascota, onEditar, onEliminar 
 
             <button
                 onClick={() => onEditar(vacuna)}
+                aria-label="Editar vacuna"
+                title="Editar vacuna"
                 className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
             >
                 Editar
@@ -24,6 +26,8 @@ export default function VacunaRow({ vacuna, nombreMascota, onEditar, onEliminar 
 
             <button
                 onClick={() => onEliminar(vacuna.id)}
+                aria-label="Eliminar vacuna"
+                title="Eliminar vacuna"
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded ml-2"
             >
                 Eliminar

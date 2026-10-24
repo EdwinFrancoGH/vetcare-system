@@ -1,5 +1,9 @@
 // Utilidades para construir la línea de tiempo clínica y el resumen
 // automático de una mascota, a partir de su historial y sus vacunas.
+import {
+    ultimaDosisPorVacuna,
+    ultimoSeguimientoPorMascota,
+} from "./estadoClinico";
 
 // Une historial + vacunas en una sola lista de eventos, ordenada de
 // más reciente a más antigua.
@@ -67,10 +71,10 @@ export function generarResumenClinico(historiales = [], vacunas = []) {
     // Próxima fecha pendiente registrada (cita de seguimiento o
     // refuerzo de vacuna), la más cercana en el tiempo.
     const pendientes = [
-        ...historiales
+        ...ultimoSeguimientoPorMascota(historiales)
             .filter((h) => !!h.proximaCita)
             .map((h) => ({ tipo: "Cita de seguimiento", fecha: h.proximaCita })),
-        ...vacunas
+        ...ultimaDosisPorVacuna(vacunas)
             .filter((v) => !!v.proximaFecha)
             .map((v) => ({ tipo: `Refuerzo de ${v.nombre}`, fecha: v.proximaFecha })),
     ].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
