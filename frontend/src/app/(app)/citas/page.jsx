@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useAuth } from "../../../context/AuthContext";
 import DisponibilidadCitas from "../../../components/citas/DisponibilidadCitas";
 import HorarioAtencionForm from "../../../components/citas/HorarioAtencionForm";
@@ -59,7 +60,16 @@ export default function CitasPage() {
     const esVeterinario = userRole === "Veterinario";
 
     return (
-        <div>
+        <div className="relative">
+
+            <Image
+                src="/images/rabbit-vetcare.png"
+                alt="Conejito veterinario"
+                width={1024}
+                height={1536}
+                className="pointer-events-none absolute -top-4 right-64 z-10 hidden h-60 w-auto select-none object-contain xl:block"
+                priority
+            />
 
             <div className="flex justify-between items-center mb-6">
 
