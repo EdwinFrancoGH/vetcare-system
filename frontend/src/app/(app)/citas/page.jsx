@@ -62,23 +62,26 @@ export default function CitasPage() {
     return (
         <div className="relative">
 
-            <Image
-                src="/images/rabbit-vetcare.png"
-                alt="Conejito veterinario"
-                width={1024}
-                height={1536}
-                className="pointer-events-none absolute -top-4 right-64 z-10 hidden h-60 w-auto select-none object-contain xl:block"
-                priority
-            />
+            {esVistaCliente && (
+                <Image
+                    src="/images/rabbit-vetcare.png"
+                    alt="Conejito veterinario"
+                    width={1024}
+                    height={1536}
+                    className="pointer-events-none absolute left-[56%] top-3 z-10 hidden h-48 w-auto select-none object-contain xl:block"
+                    priority
+                />
+            )}
 
-            <div className="flex justify-between items-center mb-6">
+            <div className="mb-3 flex min-h-20 flex-wrap items-end justify-between gap-x-3 gap-y-2">
 
-                <h1 className="text-4xl font-bold text-gray-900">
+                <h1 className="self-start text-3xl font-bold text-gray-900 sm:text-4xl">
                     Citas
                 </h1>
 
-                {puedeElegirVista && (
-                    <div className="flex bg-white rounded-lg shadow overflow-hidden">
+                <div className="flex items-start gap-2 sm:gap-4">
+                    {puedeElegirVista && (
+                    <div className="flex overflow-hidden rounded-lg bg-white shadow">
 
                         <button
                             onClick={() => setVista("cliente")}
@@ -103,7 +106,8 @@ export default function CitasPage() {
                         </button>
 
                     </div>
-                )}
+                    )}
+                </div>
 
             </div>
 

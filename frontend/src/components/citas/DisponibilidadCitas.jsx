@@ -189,11 +189,11 @@ export default function DisponibilidadCitas() {
         <div>
             {esCliente && proximaCitaCliente && <AvisoProximaCita proximaCita={proximaCitaCliente} />}
 
-            <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+            <div className="mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Disponibilidad de Horarios</h2>
-                    <p className="text-gray-600 mt-1">Elige un horario disponible para agendar la consulta de tu mascota.</p>
-                    <p className="text-xs text-gray-500 mt-1">Los horarios se muestran en hora de El Salvador. La cita dura aprox. {duracionCita} min.</p>
+                    <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Disponibilidad de Horarios</h2>
+                    <p className="mt-1 text-gray-600">Elige un horario disponible para agendar la consulta de tu mascota.</p>
+                    <p className="mt-1 text-xs text-gray-500">Los horarios se muestran en hora de El Salvador. La cita dura aprox. {duracionCita} min.</p>
                 </div>
             </div>
 
