@@ -120,7 +120,7 @@ export default function AgendarCita() {
       return;
     }
 
-    const telefonoValido = /^(\\+?503[\\s-]?)?[2-7]\\d{3}[\\s-]?\\d{4}$/.test(telefono.trim());
+    const telefonoValido = /^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/.test(telefono.trim());
     if (!telefonoValido) {
       Alert.alert(
         'Teléfono inválido',
