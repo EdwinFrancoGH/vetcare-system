@@ -8,9 +8,13 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Colors } from '@/constants/theme';
 import { auth } from '@/config/firebase';
 import { crearMascota } from '@/features/mascotas/services/mascotas.service';
@@ -53,10 +57,48 @@ export default function AgregarMascotaScreen() {
 
   const [estado, setEstado] = useState('');
   const [mostrarEstados, setMostrarEstados] = useState(false);
+  const [foto, setFoto] = useState('');
+  const [seleccionandoFoto, setSeleccionandoFoto] = useState(false);
 
   const handleVolver = () => {
     console.log('REGRESANDO A MASCOTAS');
     router.replace('/mascotas');
+  };
+
+  const seleccionarFoto = async () => {
+    try {
+      const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permiso.granted) {
+        Alert.alert('Permiso requerido', 'Permite el acceso a tus fotos para elegir una imagen de tu mascota.');
+        return;
+      }
+
+      const seleccion = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (seleccion.canceled || !seleccion.assets[0]) return;
+
+      setSeleccionandoFoto(true);
+      const imagen = await ImageManipulator.manipulateAsync(
+        seleccion.assets[0].uri,
+        [{ resize: { width: 320 } }],
+        { compress: 0.78, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      if (!imagen.base64) throw new Error('No se pudo procesar la foto seleccionada.');
+
+      const fotoComprimida = `data:image/jpeg;base64,${imagen.base64}`;
+      if (fotoComprimida.length > 1_400_000) {
+        throw new Error('La foto sigue siendo muy pesada. Selecciona otra imagen.');
+      }
+      setFoto(fotoComprimida);
+    } catch (error: any) {
+      Alert.alert('No se pudo seleccionar la foto', error?.message || 'Inténtalo de nuevo.');
+    } finally {
+      setSeleccionandoFoto(false);
+    }
   };
 
   const handleGuardar = async () => {
@@ -207,6 +249,7 @@ export default function AgregarMascotaScreen() {
         telefono: telefono.trim(),
         direccion: direccion.trim(),
         estado,
+        ...(foto ? { foto } : {}),
       };
 
       console.log('Datos enviados:', mascota);
@@ -318,24 +361,23 @@ export default function AgregarMascotaScreen() {
           {/* FOTO */}
           <View style={styles.photoSection}>
 
-            <Pressable
-              style={styles.photoContainer}
-              onPress={() =>
-                Alert.alert(
-                  'Foto',
-                  'La selección de imagen se agregará posteriormente.'
-                )
-              }
-            >
-              <Ionicons
-                name="camera-outline"
-                size={32}
-                color={colors.primary}
-              />
+            <Pressable style={styles.photoContainer} onPress={seleccionarFoto} disabled={seleccionandoFoto} accessibilityLabel="Seleccionar foto de mascota">
+              {seleccionandoFoto ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : foto ? (
+                <Image source={{ uri: foto }} style={styles.petPhoto} />
+              ) : (
+                <Ionicons name="camera-outline" size={32} color={colors.primary} />
+              )}
+              {!seleccionandoFoto ? (
+                <View style={styles.photoCameraBadge}>
+                  <Ionicons name="camera" size={15} color="#FFFFFF" />
+                </View>
+              ) : null}
             </Pressable>
 
             <Text style={styles.photoText}>
-              Agregar foto
+              {foto ? 'Cambiar foto' : 'Agregar foto'}
             </Text>
 
           </View>
@@ -823,6 +865,27 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.primary,
     borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+
+  petPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+
+  photoCameraBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },

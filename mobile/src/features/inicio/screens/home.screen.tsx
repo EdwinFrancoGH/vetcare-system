@@ -1,410 +1,247 @@
-import React from 'react';
-
+import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
-  Pressable,
-  ScrollView,
 } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
+import { auth } from '@/config/firebase';
+import { API_URL } from '@/config/api';
+import { listarMascotas, obtenerVacunasMascota } from '@/features/mascotas/services/mascotas.service';
+import { listarCitasDeMascota } from '@/features/citas/services/citas.service';
 
 const colors = Colors.light;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [nombreUsuario, setNombreUsuario] = useState('Cliente');
+  const [mascotas, setMascotas] = useState<Mascota[]>([]);
+  const [citasProximas, setCitasProximas] = useState<Cita[]>([]);
+  const [proximaCita, setProximaCita] = useState<Cita | null>(null);
+  const [proximasVacunas, setProximasVacunas] = useState<VacunaPendiente[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const cargarInicio = useCallback(async () => {
+    const usuario = auth.currentUser;
+    if (!usuario) {
+      setError('No hay una sesión activa.');
+      setLoading(false);
+      return;
+    }
+
+    const nombreFallback = usuario.displayName?.trim() || usuario.email?.split('@')[0] || 'Cliente';
+    setNombreUsuario(nombreFallback);
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = await usuario.getIdToken();
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const [perfilResponse, mascotasResponse] = await Promise.all([
+        fetch(`${API_URL}/api/users/profile`, { headers }),
+        listarMascotas({ headers }),
+      ]);
+
+      if (perfilResponse.ok) {
+        const perfil = await perfilResponse.json();
+        const nombrePerfil = perfil?.user?.name?.trim();
+        if (nombrePerfil) setNombreUsuario(nombrePerfil);
+      }
+
+      const mascotasData = await mascotasResponse.json();
+      if (!mascotasResponse.ok) {
+        throw new Error(mascotasData.message || mascotasData.error || 'No se pudieron cargar tus mascotas.');
+      }
+
+      const listaMascotas: Mascota[] = Array.isArray(mascotasData.data) ? mascotasData.data : [];
+      setMascotas(listaMascotas);
+
+      const [citasPorMascota, vacunasPorMascota] = await Promise.all([
+        Promise.all(listaMascotas.map(async (mascota) => {
+          const response = await listarCitasDeMascota(mascota.id, { headers });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || `No se pudieron cargar las citas de ${mascota.nombre}.`);
+          return (Array.isArray(data.data) ? data.data : []).map((cita: Cita) => ({ ...cita, mascotaNombre: mascota.nombre }));
+        })),
+        Promise.all(listaMascotas.map(async (mascota) => {
+          const response = await obtenerVacunasMascota(mascota.id, { headers });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.mensaje || data.message || `No se pudieron cargar las vacunas de ${mascota.nombre}.`);
+          return (Array.isArray(data.data) ? data.data : []).map((vacuna: VacunaPendiente) => ({ ...vacuna, mascotaNombre: mascota.nombre }));
+        })),
+      ]);
+
+      const hoy = fechaHoyISO();
+      const citasFuturas = citasPorMascota.flat()
+        .filter((cita) => cita.fecha >= hoy && !['cancelada', 'completada'].includes(cita.estado?.toLowerCase()))
+        .sort((a, b) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`));
+      setCitasProximas(citasFuturas);
+      setProximaCita(citasFuturas[0] || null);
+
+      const vacunasFuturas = vacunasPorMascota.flat()
+        .filter((vacuna) => Boolean(vacuna.proximaFecha) && vacuna.proximaFecha! >= hoy)
+        .sort((a, b) => a.proximaFecha!.localeCompare(b.proximaFecha!));
+      setProximasVacunas(vacunasFuturas);
+    } catch (err: any) {
+      console.error('Error cargando el inicio:', err);
+      setError(err?.message || 'No se pudo cargar tu información.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { cargarInicio(); }, [cargarInicio]));
+
+  const abrirDetalleCita = () => {
+    if (proximaCita?.id) router.push(`/detalle-cita?id=${encodeURIComponent(proximaCita.id)}`);
+    else router.push('/citas');
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
-
-        {/* =========================================
-            CONTENIDO PRINCIPAL
-        ========================================= */}
-
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-
-          {/* =========================================
-              HEADER
-          ========================================= */}
-
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
-
-            <Text style={styles.greeting}>
-              ¡Hola, Ana!
-            </Text>
-
-            <Text style={styles.welcomeText}>
-              Bienvenida de vuelta a VetCare
-            </Text>
-
+            <Text style={styles.greeting}>¡Hola, {nombreUsuario}!</Text>
+            <Text style={styles.welcomeText}>Bienvenido/a de vuelta a VetCare</Text>
           </View>
 
-
-          {/* =========================================
-              TARJETAS DE RESUMEN
-          ========================================= */}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <View style={styles.summaryContainer}>
-
-            {/* Mascotas */}
-
-            <Pressable
-              style={styles.summaryCard}
-              onPress={() => router.push('/mascotas')}
-              hitSlop={8}
-            >
-
+            <Pressable style={styles.summaryCard} onPress={() => router.push('/mascotas')} hitSlop={8}>
               <View style={styles.summaryHeader}>
-
-                <Text style={styles.summaryNumber}>
-                  2
-                </Text>
-
-                <Ionicons
-                  name="paw-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-
+                <Text style={styles.summaryNumber}>{mascotas.length}</Text>
+                <Ionicons name="paw-outline" size={18} color={colors.primary} />
               </View>
-
-              <Text style={styles.summaryLabel}>
-                Mis mascotas
-              </Text>
-
+              <Text style={styles.summaryLabel}>Mis mascotas</Text>
             </Pressable>
 
-
-            {/* Próxima cita */}
-
-            <Pressable
-              style={styles.summaryCard}
-              onPress={() => router.push('/citas')}
-              hitSlop={8}
-            >
-
+            <Pressable style={styles.summaryCard} onPress={() => router.push('/citas')} hitSlop={8}>
               <View style={styles.summaryHeader}>
-
-                <Text style={styles.summaryNumber}>
-                  1
-                </Text>
-
-                <Ionicons
-                  name="calendar-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-
+                <Text style={styles.summaryNumber}>{citasProximas.length}</Text>
+                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
               </View>
-
-              <Text style={styles.summaryLabel}>
-                Próxima cita
-              </Text>
-
+              <Text style={styles.summaryLabel}>Próxima cita</Text>
             </Pressable>
 
-
-            {/* Vacunas */}
-
-            <Pressable
-              style={styles.summaryCard}
-              onPress={() => router.push('/mascotas')}
-              hitSlop={8}
-            >
-
+            <Pressable style={styles.summaryCard} onPress={() => router.push('/mascotas')} hitSlop={8}>
               <View style={styles.summaryHeader}>
-
-                <Text style={styles.summaryNumber}>
-                  2
-                </Text>
-
-                <Ionicons
-                  name="medkit-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-
+                <Text style={styles.summaryNumber}>{proximasVacunas.length}</Text>
+                <Ionicons name="medkit-outline" size={18} color={colors.primary} />
               </View>
-
-              <Text style={styles.summaryLabel}>
-                Vacunas próx.
-              </Text>
-
+              <Text style={styles.summaryLabel}>Vacunas próx.</Text>
             </Pressable>
-
           </View>
 
-
-          {/* =========================================
-              PRÓXIMA CITA
-          ========================================= */}
-
-          <Text style={styles.sectionTitle}>
-            Próxima cita
-          </Text>
-
-
-          <View style={styles.appointmentCard}>
-
-            {/* Mascota */}
-
-            <View style={styles.petHeader}>
-
-              <View style={styles.petAvatar}>
-
-                <Ionicons
-                  name="paw"
-                  size={26}
-                  color={colors.primary}
-                />
-
+          <Text style={styles.sectionTitle}>Próxima cita</Text>
+          {loading ? (
+            <ActivityIndicator style={styles.loading} color={colors.primary} />
+          ) : proximaCita ? (
+            <View style={styles.appointmentCard}>
+              <View style={styles.petHeader}>
+                <View style={styles.petAvatar}><Ionicons name="paw" size={26} color={colors.primary} /></View>
+                <View style={styles.petInfo}>
+                  <Text style={styles.petName}>{proximaCita.mascotaNombre || 'Mascota'}</Text>
+                  <Text style={styles.petService}>{proximaCita.motivo || 'Consulta veterinaria'}</Text>
+                </View>
               </View>
-
-
-              <View style={styles.petInfo}>
-
-                <Text style={styles.petName}>
-                  Max
-                </Text>
-
-                <Text style={styles.petService}>
-                  Consulta general
-                </Text>
-
+              <View style={styles.divider} />
+              <View style={styles.appointmentInfoRow}>
+                <Ionicons name="time-outline" size={17} color={colors.primary} />
+                <Text style={styles.appointmentInfoText}>{formatearFecha(proximaCita.fecha)}{proximaCita.hora ? ` - ${proximaCita.hora}` : ''}</Text>
               </View>
-
+              {proximaCita.veterinario ? (
+                <View style={styles.appointmentInfoRow}>
+                  <Ionicons name="person-outline" size={17} color={colors.primary} />
+                  <Text style={styles.appointmentInfoText}>Veterinario: {proximaCita.veterinario}</Text>
+                </View>
+              ) : null}
+              <Pressable style={styles.detailsButton} onPress={abrirDetalleCita} hitSlop={8}>
+                <Text style={styles.detailsButtonText}>Ver detalles</Text>
+              </Pressable>
             </View>
-
-
-            {/* Separador */}
-
-            <View style={styles.divider} />
-
-
-            {/* Fecha */}
-
-            <View style={styles.appointmentInfoRow}>
-
-              <Ionicons
-                name="time-outline"
-                size={17}
-                color={colors.primary}
-              />
-
-              <Text style={styles.appointmentInfoText}>
-                22 de Mayo, 2026 - 10:00 AM
-              </Text>
-
+          ) : (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>{mascotas.length ? 'No tienes citas próximas.' : 'Aún no tienes mascotas registradas.'}</Text>
+              {mascotas.length === 0 ? (
+                <Pressable onPress={() => router.push('/agregar-mascota')}><Text style={styles.emptyLink}>Registrar una mascota</Text></Pressable>
+              ) : null}
             </View>
+          )}
 
-
-            {/* Veterinario */}
-
-            <View style={styles.appointmentInfoRow}>
-
-              <Ionicons
-                name="person-outline"
-                size={17}
-                color={colors.primary}
-              />
-
-              <Text style={styles.appointmentInfoText}>
-                Veterinario: Dr. Juan Pérez
-              </Text>
-
-            </View>
-
-
-            {/* Botón */}
-
-            <Pressable
-              style={styles.detailsButton}
-              onPress={() => router.push('/citas')}
-              hitSlop={8}
-            >
-
-              <Text style={styles.detailsButtonText}>
-                Ver detalles
-              </Text>
-
+          <Text style={styles.sectionTitle}>Recordatorios</Text>
+          {loading ? (
+            <ActivityIndicator style={styles.loading} color={colors.primary} />
+          ) : proximasVacunas[0] ? (
+            <Pressable style={styles.reminderCard} onPress={() => router.push('/mascotas')} hitSlop={8}>
+              <View style={styles.reminderIcon}><Ionicons name="medkit-outline" size={18} color={colors.primary} /></View>
+              <View style={styles.reminderInfo}>
+                <Text style={styles.reminderTitle}>{proximasVacunas[0].nombre} • {proximasVacunas[0].mascotaNombre}</Text>
+                <Text style={styles.reminderDate}>Próxima dosis: {formatearFecha(proximasVacunas[0].proximaFecha!)}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={19} color="#6B7280" />
             </Pressable>
-
-          </View>
-
-
-          {/* =========================================
-              RECORDATORIOS
-          ========================================= */}
-
-          <Text style={styles.sectionTitle}>
-            Recordatorios
-          </Text>
-
-
-          <Pressable
-            style={styles.reminderCard}
-            onPress={() => router.push('/mascotas')}
-            hitSlop={8}
-          >
-
-            <View style={styles.reminderIcon}>
-
-              <Ionicons
-                name="medkit-outline"
-                size={18}
-                color={colors.primary}
-              />
-
-            </View>
-
-
-            <View style={styles.reminderInfo}>
-
-              <Text style={styles.reminderTitle}>
-                Vacuna de la Rabia • Max
-              </Text>
-
-              <Text style={styles.reminderDate}>
-                Vence el 25 de Mayo, 2026
-              </Text>
-
-            </View>
-
-
-            <Ionicons
-              name="chevron-forward"
-              size={19}
-              color="#6B7280"
-            />
-
-          </Pressable>
-
-
+          ) : (
+            <View style={styles.emptyCard}><Text style={styles.emptyText}>No tienes vacunas próximas registradas.</Text></View>
+          )}
           <View style={styles.bottomSpace} />
-
         </ScrollView>
 
-
-        {/* =========================================
-            BARRA INFERIOR
-        ========================================= */}
-
         <View style={styles.bottomNav}>
-
-          {/* Inicio */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => router.replace('/home')}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="home"
-              size={21}
-              color={colors.primary}
-            />
-
-            <Text style={styles.navTextActive}>
-              Inicio
-            </Text>
-
+          <Pressable style={styles.navItem} onPress={() => router.replace('/home')} hitSlop={12}>
+            <Ionicons name="home" size={21} color={colors.primary} /><Text style={styles.navTextActive}>Inicio</Text>
           </Pressable>
-
-
-          {/* Mascotas */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => {
-              console.log('ABRIENDO MASCOTAS DESDE HOME');
-              router.push('/mascotas');
-            }}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="paw-outline"
-              size={21}
-              color="#9CA3AF"
-            />
-
-            <Text style={styles.navText}>
-              Mascotas
-            </Text>
-
+          <Pressable style={styles.navItem} onPress={() => router.push('/mascotas')} hitSlop={12}>
+            <Ionicons name="paw-outline" size={21} color="#9CA3AF" /><Text style={styles.navText}>Mascotas</Text>
           </Pressable>
-
-
-          {/* Citas */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => {
-              console.log('ABRIENDO CITAS DESDE HOME');
-              router.push('/citas');
-            }}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="calendar-outline"
-              size={21}
-              color="#9CA3AF"
-            />
-
-            <Text style={styles.navText}>
-              Citas
-            </Text>
-
+          <Pressable style={styles.navItem} onPress={() => router.push('/citas')} hitSlop={12}>
+            <Ionicons name="calendar-outline" size={21} color="#9CA3AF" /><Text style={styles.navText}>Citas</Text>
           </Pressable>
-
-
-          {/* Perfil */}
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => {
-              console.log('ABRIENDO PERFIL DESDE HOME');
-              router.push('/explore');
-            }}
-            hitSlop={12}
-          >
-
-            <Ionicons
-              name="person-outline"
-              size={21}
-              color="#9CA3AF"
-            />
-
-            <Text style={styles.navText}>
-              Perfil
-            </Text>
-
+          <Pressable style={styles.navItem} onPress={() => router.push('/explore')} hitSlop={12}>
+            <Ionicons name="person-outline" size={21} color="#9CA3AF" /><Text style={styles.navText}>Perfil</Text>
           </Pressable>
-
         </View>
-
       </View>
     </SafeAreaView>
   );
 }
 
+type Mascota = { id: string; nombre: string };
+type Cita = { id: string; mascotaId: string; fecha: string; hora?: string; motivo?: string; veterinario?: string; estado: string; mascotaNombre?: string };
+type VacunaPendiente = { id: string; mascotaId: string; nombre: string; proximaFecha?: string; mascotaNombre?: string };
+
+function fechaHoyISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/El_Salvador' }).format(new Date());
+}
+
+function formatearFecha(fecha: string) {
+  const [year, month, day] = fecha.split('-').map(Number);
+  if (!year || !month || !day) return fecha;
+  return new Date(year, month - 1, day).toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+const stylesWithStates = {
+  errorText: { color: '#DC2626', fontSize: 12, marginHorizontal: 24, marginTop: 10 },
+  loading: { marginHorizontal: 24, marginVertical: 16 },
+  emptyCard: { backgroundColor: '#FFFFFF', marginHorizontal: 24, borderRadius: 11, padding: 16, alignItems: 'center' as const },
+  emptyText: { color: '#6B7280', fontSize: 12, textAlign: 'center' as const },
+  emptyLink: { color: colors.primary, fontSize: 12, fontWeight: '700' as const, marginTop: 8 },
+};
 
 /* =====================================================
    ESTILOS
 ===================================================== */
 
 const styles = StyleSheet.create({
+  ...stylesWithStates,
 
   safeArea: {
     flex: 1,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import {
   SafeAreaView,
@@ -8,10 +8,11 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 
 import { auth } from '@/config/firebase';
@@ -85,11 +86,7 @@ export default function DetalleMascotaScreen() {
   const [error, setError] = useState('');
   const [errorSalud, setErrorSalud] = useState('');
 
-  useEffect(() => {
-    cargarMascota();
-  }, [id]);
-
-  const cargarMascota = async () => {
+  const cargarMascota = useCallback(async () => {
     try {
       setCargando(true);
       setError('');
@@ -146,7 +143,9 @@ export default function DetalleMascotaScreen() {
     } finally {
       setCargando(false);
     }
-  };
+  }, [id]);
+
+  useFocusEffect(useCallback(() => { cargarMascota(); }, [cargarMascota]));
 
   // =====================================================
   // CARGAR INFORMACIÓN DE SALUD
@@ -446,11 +445,14 @@ export default function DetalleMascotaScreen() {
             </View>
 
             <View style={styles.petIcon}>
-              <Ionicons
-                name="paw"
-                size={24}
-                color="#FFFFFF"
-              />
+              {mascota.foto || mascota.imagen ? (
+                <Image
+                  source={{ uri: mascota.foto || mascota.imagen }}
+                  style={styles.petDetailImage}
+                />
+              ) : (
+                <Ionicons name="paw" size={24} color="#FFFFFF" />
+              )}
             </View>
 
           </View>
@@ -1068,12 +1070,18 @@ const styles = StyleSheet.create({
   },
 
   petIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  petDetailImage: {
+    width: '100%',
+    height: '100%',
   },
 
   /* =========================================
