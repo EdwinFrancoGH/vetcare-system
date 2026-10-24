@@ -22,7 +22,7 @@ export default function TarjetaPedidoPersonal({
     const fecha = formatearFechaPedido(pedido.fechaPedido);
     const hora = formatearHoraPedido(pedido.fechaPedido);
     const tipoEtiqueta = pedido.tipo === "en_linea"
-        ? "En línea (prueba)"
+        ? "Pago simulado; por cobrar"
         : "Retiro en clínica";
 
     const fechaLimite = obtenerFechaLimitePedido(pedido);
