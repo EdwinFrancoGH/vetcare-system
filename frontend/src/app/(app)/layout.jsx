@@ -14,7 +14,7 @@ export default function AppLayout({ children }) {
 
     return (
         <ProtectedRoute>
-            <div className="flex bg-gray-100 min-h-screen">
+            <div className="flex bg-gray-100 min-h-screen print:bg-white print:min-h-0">
                 <Sidebar
                     abierto={sidebarAbierto}
                     onCerrar={() => setSidebarAbierto(false)}
@@ -23,7 +23,7 @@ export default function AppLayout({ children }) {
                 <div className="flex-1 flex flex-col min-w-0">
                     <Navbar onAbrirMenu={() => setSidebarAbierto(true)} />
 
-                    <main className="p-4 md:p-8">
+                    <main className="p-4 md:p-8 print:p-0">
                         {children}
                     </main>
                 </div>

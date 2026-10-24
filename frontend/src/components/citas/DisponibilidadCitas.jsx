@@ -1,39 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { obtenerCitasDisponibles } from "../../services/citas.service";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { obtenerCitasDisponibles, obtenerCitasPorMascota } from "../../services/citas.service";
 import { obtenerHorarios } from "../../services/horarios.service";
 import { obtenerMascotas } from "../../services/mascotas.service";
 import {
     agruparCitasPorFecha,
-    formatearFechaLarga,
+    esCitaProxima,
     hoyISO,
+    horaActualSV,
     inicioDeSemana,
     sumarDiasISO,
 } from "../../utils/citas";
+import { useAuth } from "../../context/AuthContext";
 import ReservarCitaModal from "./ReservarCitaModal";
+import AvisoProximaCita from "./AvisoProximaCita";
+import SelectorMedico from "./SelectorMedico";
+import SelectorDias from "./SelectorDias";
+import HorariosDelDia from "./HorariosDelDia";
 
-// Distingue un backend caído / URL mal configurada (sin respuesta) de un
-// error que el servidor sí respondió (401, 403, 500...), para no culpar
-// siempre a la conexión.
 function mensajeDeError(error) {
     if (!error?.response) {
         return "No se pudo conectar con el servidor. Verifica que el backend esté corriendo.";
     }
-
-    return (
-        error.response.data?.message ||
-        `El servidor respondió con un error (${error.response.status}).`
-    );
+    return error.response.data?.message || `El servidor respondió con un error (${error.response.status}).`;
 }
 
-// Vista Cliente (dueño de mascota): muestra, semana por semana, los
-// horarios disponibles de un veterinario (calculados a partir de su
-// horario semanal de atención) para que el usuario elija uno y lo
-// reserve. Si una semana está completamente ocupada, el cliente avanza
-// a la siguiente con el botón "Semana siguiente".
 export default function DisponibilidadCitas() {
-
+    const { user, userRole } = useAuth();
+    const esCliente = !!user && userRole === "Cliente";
     const semanaActual = inicioDeSemana(hoyISO());
 
     const [veterinarios, setVeterinarios] = useState([]);
@@ -44,8 +39,21 @@ export default function DisponibilidadCitas() {
     const [cargando, setCargando] = useState(true);
     const [citaSeleccionada, setCitaSeleccionada] = useState(null);
     const [error, setError] = useState(null);
-
+    const [diaSeleccionado, setDiaSeleccionado] = useState(null);
+    const [proximaCitaCliente, setProximaCitaCliente] = useState(null);
     const finSemana = sumarDiasISO(inicioSemana, 6);
+    const hoy = hoyISO();
+    const [horaSV, setHoraSV] = useState(() => horaActualSV());
+    const forzarAutoSeleccionRef = useRef(true);
+
+    useEffect(() => {
+        const intervalo = setInterval(() => setHoraSV(horaActualSV()), 60000);
+        return () => clearInterval(intervalo);
+    }, []);
+
+    useEffect(() => {
+        forzarAutoSeleccionRef.current = true;
+    }, [inicioSemana, veterinarioSeleccionado]);
 
     useEffect(() => {
         cargarVeterinariosYMascotas();
@@ -53,139 +61,143 @@ export default function DisponibilidadCitas() {
     }, []);
 
     useEffect(() => {
-        if (veterinarioSeleccionado) {
-            cargarDisponibilidad();
-        }
+        if (veterinarioSeleccionado) cargarDisponibilidad();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [veterinarioSeleccionado, inicioSemana]);
 
     async function cargarVeterinariosYMascotas() {
-
         try {
-
-            // allSettled: si falla la carga de mascotas, igual se muestran
-            // los horarios disponibles. Antes, con Promise.all, cualquier
-            // error de /mascotas (como el 403 que recibía un Cliente) tumbaba
-            // toda la vista con el mensaje engañoso de "no se pudo conectar".
             const [resHorarios, resMascotas] = await Promise.allSettled([
                 obtenerHorarios(),
                 obtenerMascotas(),
             ]);
 
-            if (resHorarios.status === "rejected") {
-                throw resHorarios.reason;
-            }
-
+            if (resHorarios.status === "rejected") throw resHorarios.reason;
             const nombres = resHorarios.value.data.data.map((h) => h.veterinario);
-
             setVeterinarios(nombres);
 
-            if (resMascotas.status === "fulfilled") {
-                setMascotas(resMascotas.value.data.data);
-            } else {
-                console.error("Error al cargar mascotas:", resMascotas.reason);
-                setMascotas([]);
+            const misMascotas = resMascotas.status === "fulfilled" ? (resMascotas.value.data.data || []) : [];
+            setMascotas(misMascotas);
+
+            if (esCliente && misMascotas.length > 0) {
+                try {
+                    const citasRes = await Promise.allSettled(
+                        misMascotas.map((m) => obtenerCitasPorMascota(m.id))
+                    );
+                    const todasCitas = citasRes
+                        .filter((r) => r.status === "fulfilled")
+                        .flatMap((r) => r.value.data?.data || []);
+
+                    const activas = todasCitas
+                        .filter(esCitaProxima)
+                        .sort((a, b) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`));
+
+                    if (activas.length > 0) {
+                        const primera = activas[0];
+                        const nombreMascota = misMascotas.find((m) => m.id === primera.mascotaId)?.nombre || "tu mascota";
+                        setProximaCitaCliente({ ...primera, nombreMascota });
+                    } else {
+                        setProximaCitaCliente(null);
+                    }
+                } catch (citasErr) {
+                    console.error("Error al cargar citas del cliente:", citasErr);
+                }
             }
 
             if (nombres.length > 0) {
-                setVeterinarioSeleccionado(nombres[0]);
+                setVeterinarioSeleccionado((prev) => prev || nombres[0]);
             } else {
                 setCargando(false);
             }
-
-        } catch (error) {
-
-            console.error("Error al cargar médicos disponibles:", error);
-            setError(mensajeDeError(error));
+        } catch (err) {
+            console.error("Error al cargar médicos disponibles:", err);
+            setError(mensajeDeError(err));
             setCargando(false);
-
         }
-
     }
 
     async function cargarDisponibilidad() {
-
         try {
-
             setCargando(true);
             setError(null);
-
             const respuesta = await obtenerCitasDisponibles({
                 veterinario: veterinarioSeleccionado,
                 desde: inicioSemana,
                 hasta: finSemana,
             });
-
-            setDisponibles(respuesta.data.data);
-
-        } catch (error) {
-
-            console.error("Error al cargar la disponibilidad de citas:", error);
-            setError(mensajeDeError(error));
+            setDisponibles(respuesta.data.data || []);
+        } catch (err) {
+            console.error("Error al cargar la disponibilidad de citas:", err);
+            setError(mensajeDeError(err));
             setDisponibles([]);
-
         } finally {
-
             setCargando(false);
-
         }
-
     }
 
+    const disponiblesValidas = useMemo(() => {
+        return disponibles.filter((c) => {
+            if (c.fecha < hoy) return false;
+            if (c.fecha === hoy && c.hora <= horaSV) return false;
+            return true;
+        });
+    }, [disponibles, hoy, horaSV]);
+
     const diasDeLaSemana = useMemo(() => {
-
-        const grupos = agruparCitasPorFecha(disponibles);
-        const porFecha = new Map(grupos.map((g) => [g.fecha, g.citas]));
-
+        const porFecha = new Map(agruparCitasPorFecha(disponiblesValidas).map((g) => [g.fecha, g.citas]));
         return Array.from({ length: 7 }, (_, i) => {
             const fecha = sumarDiasISO(inicioSemana, i);
-            return { fecha, citas: porFecha.get(fecha) || [] };
+            const citas = porFecha.get(fecha) || [];
+            return { fecha, citas, esPasado: fecha < hoy, libres: citas.length };
         });
+    }, [disponiblesValidas, inicioSemana, hoy]);
 
-    }, [disponibles, inicioSemana]);
+    useEffect(() => {
+        if (cargando || diasDeLaSemana.length === 0) return;
+
+        const diaEsValido =
+            Boolean(diaSeleccionado) &&
+            diaSeleccionado >= inicioSemana &&
+            diaSeleccionado <= finSemana &&
+            diaSeleccionado >= hoy;
+
+        if (forzarAutoSeleccionRef.current || !diaEsValido) {
+            forzarAutoSeleccionRef.current = false;
+            const primerConHorarios = diasDeLaSemana.find((d) => !d.esPasado && d.libres > 0);
+            if (primerConHorarios) {
+                setDiaSeleccionado(primerConHorarios.fecha);
+            } else {
+                const primerNoPasado = diasDeLaSemana.find((d) => !d.esPasado) || diasDeLaSemana[0];
+                if (primerNoPasado) setDiaSeleccionado(primerNoPasado.fecha);
+            }
+        }
+    }, [cargando, diasDeLaSemana, diaSeleccionado, inicioSemana, finSemana, hoy]);
 
     const esSemanaActual = inicioSemana <= semanaActual;
+    const infoDiaSeleccionado = useMemo(() => {
+        return diasDeLaSemana.find((d) => d.fecha === diaSeleccionado) || {
+            fecha: diaSeleccionado,
+            citas: [],
+            esPasado: false,
+            libres: 0,
+        };
+    }, [diasDeLaSemana, diaSeleccionado]);
+
+    const duracionCita = disponibles[0]?.duracionMinutos || 30;
 
     return (
         <div>
+            {esCliente && proximaCitaCliente && <AvisoProximaCita proximaCita={proximaCitaCliente} />}
 
             <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">
-                        Disponibilidad de Horarios
-                    </h2>
-                    <p className="text-gray-600 mt-1">
-                        Elige un horario disponible para agendar la consulta de tu mascota.
-                    </p>
+                    <h2 className="text-2xl font-bold text-gray-900">Disponibilidad de Horarios</h2>
+                    <p className="text-gray-600 mt-1">Elige un horario disponible para agendar la consulta de tu mascota.</p>
+                    <p className="text-xs text-gray-500 mt-1">Los horarios se muestran en hora de El Salvador. La cita dura aprox. {duracionCita} min.</p>
                 </div>
-
-                {veterinarios.length > 0 && (
-                    <div>
-                        <label className="block mb-1 text-sm font-medium text-gray-700">
-                            Médico
-                        </label>
-                        <select
-                            value={veterinarioSeleccionado}
-                            onChange={(e) => setVeterinarioSeleccionado(e.target.value)}
-                            className="border rounded-lg px-3 py-2 text-gray-700"
-                        >
-                            {veterinarios.map((nombre) => (
-                                <option key={nombre} value={nombre}>
-                                    Dr(a). {nombre}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-
             </div>
 
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 mb-6">
-                    {error}
-                </div>
-            )}
+            {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6 mb-6">{error}</div>}
 
             {!error && veterinarios.length === 0 && !cargando && (
                 <div className="bg-white rounded-xl shadow p-6 text-gray-500">
@@ -195,61 +207,30 @@ export default function DisponibilidadCitas() {
 
             {!error && veterinarios.length > 0 && (
                 <>
-                    <div className="flex items-center justify-between bg-white rounded-xl shadow p-4 mb-6">
-
-                        <button
-                            onClick={() => setInicioSemana(sumarDiasISO(inicioSemana, -7))}
-                            disabled={esSemanaActual}
-                            className="px-4 py-2 rounded-lg border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
-                        >
-                            &larr; Semana anterior
-                        </button>
-
-                        <p className="font-semibold text-gray-800 capitalize text-center">
-                            {formatearFechaLarga(inicioSemana)} — {formatearFechaLarga(finSemana)}
-                        </p>
-
-                        <button
-                            onClick={() => setInicioSemana(sumarDiasISO(inicioSemana, 7))}
-                            className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
-                        >
-                            Semana siguiente &rarr;
-                        </button>
-
-                    </div>
-
+                    <SelectorMedico
+                        veterinarios={veterinarios}
+                        veterinarioSeleccionado={veterinarioSeleccionado}
+                        onSeleccionar={setVeterinarioSeleccionado}
+                    />
+                    <SelectorDias
+                        inicioSemana={inicioSemana}
+                        finSemana={finSemana}
+                        esSemanaActual={esSemanaActual}
+                        onSemanaAnterior={() => setInicioSemana(sumarDiasISO(inicioSemana, -7))}
+                        onSemanaSiguiente={() => setInicioSemana(sumarDiasISO(inicioSemana, 7))}
+                        onIrAHoy={() => setInicioSemana(semanaActual)}
+                        diasDeLaSemana={diasDeLaSemana}
+                        diaSeleccionado={diaSeleccionado}
+                        onSeleccionarDia={setDiaSeleccionado}
+                    />
                     {cargando ? (
-                        <p className="text-gray-500">Cargando disponibilidad...</p>
+                        <p className="text-gray-500 py-6 text-center">Cargando disponibilidad...</p>
                     ) : (
-                        <div className="space-y-4">
-                            {diasDeLaSemana.map(({ fecha, citas }) => (
-                                <div key={fecha} className="bg-white rounded-xl shadow p-6">
-
-                                    <h3 className="text-lg font-semibold text-gray-800 mb-4 capitalize">
-                                        {formatearFechaLarga(fecha)}
-                                    </h3>
-
-                                    {citas.length === 0 ? (
-                                        <p className="text-gray-400 text-sm">
-                                            Sin horarios disponibles este día.
-                                        </p>
-                                    ) : (
-                                        <div className="flex flex-wrap gap-3">
-                                            {citas.map((cita) => (
-                                                <button
-                                                    key={`${cita.fecha}_${cita.hora}`}
-                                                    onClick={() => setCitaSeleccionada(cita)}
-                                                    className="border border-blue-700 text-blue-700 rounded-lg px-4 py-2 hover:bg-blue-700 hover:text-white transition text-sm font-medium"
-                                                >
-                                                    {cita.hora}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                </div>
-                            ))}
-                        </div>
+                        <HorariosDelDia
+                            fecha={infoDiaSeleccionado.fecha}
+                            citas={infoDiaSeleccionado.citas}
+                            onSeleccionarCita={setCitaSeleccionada}
+                        />
                     )}
                 </>
             )}
@@ -259,11 +240,12 @@ export default function DisponibilidadCitas() {
                     cita={citaSeleccionada}
                     mascotas={mascotas}
                     onClose={() => setCitaSeleccionada(null)}
-                    onSuccess={cargarDisponibilidad}
+                    onSuccess={() => {
+                        cargarDisponibilidad();
+                        cargarVeterinariosYMascotas();
+                    }}
                 />
             )}
-
         </div>
     );
-
 }

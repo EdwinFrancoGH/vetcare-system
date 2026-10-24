@@ -1,5 +1,7 @@
 "use client";
 
+import { formatearFechaCorta } from "../../utils/citas";
+
 export default function LineaTiempoClinica({ eventos }) {
 
     if (eventos.length === 0) {
@@ -31,7 +33,7 @@ export default function LineaTiempoClinica({ eventos }) {
                         />
 
                         <p className="text-xs uppercase tracking-wide text-gray-400">
-                            {evento.tipo === "consulta" ? "Consulta" : "Vacuna"} · {evento.fecha}
+                            {evento.tipo === "consulta" ? "Consulta" : "Vacuna"} · {formatearFechaCorta(evento.fecha)}
                         </p>
 
                         {evento.tipo === "consulta" ? (
@@ -56,14 +58,12 @@ export default function LineaTiempoClinica({ eventos }) {
                                 <p className="font-medium text-gray-900">
                                     {evento.datos.nombre}
                                 </p>
-                                {evento.datos.veterinario && (
-                                    <p className="text-gray-600 text-sm">
-                                        Veterinario: {evento.datos.veterinario}
-                                    </p>
-                                )}
+                                <p className="text-gray-600 text-sm">
+                                    Veterinario: {evento.datos.veterinario || "Dr(a). de turno"}
+                                </p>
                                 {evento.datos.proximaFecha && (
                                     <p className="text-orange-600 text-sm">
-                                        Próximo refuerzo: {evento.datos.proximaFecha}
+                                        Próximo refuerzo: {formatearFechaCorta(evento.datos.proximaFecha)}
                                     </p>
                                 )}
                             </>

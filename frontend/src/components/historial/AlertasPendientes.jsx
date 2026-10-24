@@ -1,6 +1,7 @@
 "use client";
 
 import BotonAgregarCalendar from "../ui/BotonAgregarCalendar";
+import { formatearFechaCorta } from "../../utils/citas";
 
 export default function AlertasPendientes({ vencidos, proximos, nombreMascota }) {
 
@@ -17,7 +18,7 @@ export default function AlertasPendientes({ vencidos, proximos, nombreMascota })
                     <ul className="text-sm space-y-1">
                         {vencidos.map((v, i) => (
                             <li key={i} className="flex items-center justify-between gap-3">
-                                <span>{v.tipo} — vencido desde el {v.fecha}</span>
+                                <span>{v.tipo} — vencido desde el {formatearFechaCorta(v.fecha)}</span>
                                 <BotonAgregarCalendar
                                     titulo={`${v.tipo} - ${nombreMascota || "Mascota"}`}
                                     fecha={v.fecha}
@@ -35,7 +36,7 @@ export default function AlertasPendientes({ vencidos, proximos, nombreMascota })
                     <ul className="text-sm space-y-1">
                         {proximos.map((p, i) => (
                             <li key={i} className="flex items-center justify-between gap-3">
-                                <span>{p.tipo} — {p.fecha}</span>
+                                <span>{p.tipo} — {formatearFechaCorta(p.fecha)}</span>
                                 <BotonAgregarCalendar
                                     titulo={`${p.tipo} - ${nombreMascota || "Mascota"}`}
                                     fecha={p.fecha}
