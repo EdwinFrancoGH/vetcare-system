@@ -137,6 +137,7 @@ export default function Navbar({ onAbrirMenu }) {
     const displayRole = userData?.role || "";
 
     return (
+        <>
         <header className="z-10 flex min-h-16 shrink-0 items-center justify-between gap-2 bg-white px-3 shadow sm:px-6 lg:px-8 print:hidden">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                 <button
@@ -193,9 +194,11 @@ export default function Navbar({ onAbrirMenu }) {
                 </Link>
             </div>
 
+        </header>
+
             {logoOpen && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
                     onClick={() => setLogoOpen(false)}
                 >
                     <div
@@ -242,6 +245,6 @@ export default function Navbar({ onAbrirMenu }) {
                     </div>
                 </div>
             )}
-        </header>
+        </>
     );
 }
