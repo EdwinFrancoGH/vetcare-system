@@ -89,7 +89,7 @@ export default function ModalFinalizarCompra({
                     <div>
                         <h3 className="text-base font-bold text-zinc-900">Finalizar Pedido</h3>
                         <p className="text-xs text-zinc-500">
-                            Revisa el resumen y elige cómo deseas completar tu compra.
+                            Revisa el resumen y elige cómo registrar tu pedido.
                         </p>
                     </div>
                     <button
@@ -173,10 +173,10 @@ export default function ModalFinalizarCompra({
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm font-bold text-zinc-900">
-                                    Pagar en línea
+                                    Simular pago en línea
                                 </p>
                                 <p className="text-xs text-zinc-500 mt-0.5">
-                                    Pago digital instantáneo con confirmación inmediata.
+                                    Demostración de checkout; el pedido queda por cobrar al retirarlo.
                                 </p>
                             </div>
                             <input
@@ -194,7 +194,7 @@ export default function ModalFinalizarCompra({
                         <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
                             <FaInfoCircle size={16} className="text-amber-600 flex-shrink-0" />
                             <span>
-                                <strong>Modo de prueba:</strong> no se realiza ningún cobro real.
+                                <strong>Modo de prueba:</strong> no hay cobro real; pagarás al retirar el pedido en la clínica.
                             </span>
                         </div>
                     )}
