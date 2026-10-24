@@ -9,12 +9,19 @@ import {
 
 import { validarHistorial } from "../validators/historial.validator.js";
 
-import { obtenerPorId as obtenerMascotaPorId } from "../services/mascotas.service.js";
+import { obtenerPorId as obtenerMascotaPorId, obtenerPorPropietario } from "../services/mascotas.service.js";
 
 // Obtener todos los historiales
 export const obtenerHistoriales = async (req, res) => {
     try {
-        const historiales = await obtenerTodos();
+        let historiales = await obtenerTodos();
+
+        // Corrección de seguridad: si es Cliente, solo puede consultar historiales de sus mascotas
+        if (req.userRole === "Cliente") {
+            const misMascotas = await obtenerPorPropietario(req.user.uid);
+            const idsMascotas = new Set(misMascotas.map(m => m.id));
+            historiales = historiales.filter(h => idsMascotas.has(h.mascotaId));
+        }
 
         res.json({
             ok: true,

@@ -1,6 +1,7 @@
 "use client";
 
 import BotonAgregarCalendar from "../ui/BotonAgregarCalendar";
+import { formatearFechaCorta } from "../../utils/citas";
 
 const ICONO_TENDENCIA = {
     sube: "↑",
@@ -38,7 +39,7 @@ export default function ResumenClinico({ resumen, nombreMascota }) {
 
                     <div>
                         <p className="text-sm text-gray-500">Última consulta</p>
-                        <p className="font-medium">{ultimaConsulta.fecha}</p>
+                        <p className="font-medium">{formatearFechaCorta(ultimaConsulta.fecha)}</p>
                     </div>
 
                     <div>
@@ -75,7 +76,7 @@ export default function ResumenClinico({ resumen, nombreMascota }) {
                         <div className="flex items-center justify-between gap-3">
                             <p className="font-medium">
                                 {proximaAccion
-                                    ? `${proximaAccion.tipo} — ${proximaAccion.fecha}`
+                                    ? `${proximaAccion.tipo} — ${formatearFechaCorta(proximaAccion.fecha)}`
                                     : "Sin pendientes registrados"}
                             </p>
                             {proximaAccion && (

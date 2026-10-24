@@ -95,7 +95,28 @@ export default function UsuariosPage() {
     }
   };
 
-  const handleRoleChange = async (uid, newRole) => {
+  const handleRoleChange = async (uid, newRole, userName) => {
+    const esAdmin = newRole === 'Administrador';
+    const textoConfirmacion = esAdmin
+      ? `¿Cambiar el rol de ${userName} a ${newRole}? Advertencia: este usuario tendrá acceso total al sistema.`
+      : `¿Cambiar el rol de ${userName} a ${newRole}?`;
+
+    const result = await Swal.fire({
+      title: '¿Confirmar cambio de rol?',
+      text: textoConfirmacion,
+      icon: esAdmin ? 'warning' : 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#4f46e5',
+      cancelButtonColor: '#71717a',
+      confirmButtonText: 'Sí, cambiar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) {
+      setUsers(prev => [...prev]);
+      return;
+    }
+
     try {
       await actualizarRolUsuario(uid, newRole);
 
@@ -141,7 +162,7 @@ export default function UsuariosPage() {
   };
 
   const roleStyles = {
-    Administrador: 'bg-red-100 text-red-700 border-red-200',
+    Administrador: 'bg-purple-100 text-purple-700 border-purple-200',
     Recepcionista: 'bg-blue-100 text-blue-700 border-blue-200',
     Veterinario: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     Cliente: 'bg-zinc-100 text-zinc-700 border-zinc-200'
@@ -221,7 +242,7 @@ export default function UsuariosPage() {
                         <Shield size={16} className="text-zinc-400" />
                         <select
                           value={u.role}
-                          onChange={(e) => handleRoleChange(u.uid, e.target.value)}
+                          onChange={(e) => handleRoleChange(u.uid, e.target.value, u.name || u.email)}
                           disabled={u.uid === user.uid}
                           className={`text-xs font-semibold px-2 py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${roleStyles[u.role] || 'bg-zinc-100 text-zinc-700'} ${u.uid === user.uid ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
@@ -235,7 +256,7 @@ export default function UsuariosPage() {
                     <td className="px-6 py-4">
                       <p className="text-sm text-zinc-600 flex items-center gap-2">
                         <Clock size={14} className="text-zinc-400" />
-                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Desconocido'}
+                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString('es-SV') : 'Desconocido'}
                       </p>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -244,6 +265,7 @@ export default function UsuariosPage() {
                           onClick={() => handleEdit(u)}
                           className="p-2 text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           title="Editar usuario"
+                          aria-label="Editar usuario"
                         >
                           <Pencil size={18} />
                         </button>
@@ -252,6 +274,7 @@ export default function UsuariosPage() {
                           disabled={u.uid === user.uid}
                           className={`p-2 rounded-lg transition-colors ${u.uid === user.uid ? 'text-zinc-300 cursor-not-allowed' : 'text-zinc-400 hover:text-red-500 hover:bg-red-50'}`}
                           title={u.uid === user.uid ? "No puedes eliminarte a ti mismo" : "Eliminar usuario"}
+                          aria-label={u.uid === user.uid ? "No puedes eliminarte a ti mismo" : "Eliminar usuario"}
                         >
                           <Trash2 size={18} />
                         </button>

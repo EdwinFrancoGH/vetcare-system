@@ -15,21 +15,73 @@ function diasEntre(fechaA, fechaB) {
     return (new Date(fechaA) - new Date(fechaB)) / MS_POR_DIA;
 }
 
+// Agrupa por mascotaId + nombre (comparando nombre con trim y en minúsculas)
+// y deja SOLO el registro con la fecha de aplicación (fecha) más reciente de cada grupo.
+export function ultimaDosisPorVacuna(vacunas = []) {
+    const mapa = new Map();
+
+    for (const v of vacunas) {
+        if (!v) continue;
+        const nombreNormalizado = (v.nombre || "").trim().toLowerCase();
+        const clave = `${v.mascotaId || ""}__${nombreNormalizado}`;
+        const fechaActual = (v.fecha || "").slice(0, 10);
+
+        if (!mapa.has(clave)) {
+            mapa.set(clave, v);
+        } else {
+            const existente = mapa.get(clave);
+            const fechaExistente = (existente.fecha || "").slice(0, 10);
+            if (fechaActual.localeCompare(fechaExistente) > 0) {
+                mapa.set(clave, v);
+            }
+        }
+    }
+
+    return Array.from(mapa.values());
+}
+
+// Por cada mascotaId deja solo el historial con fecha más reciente
+// (una consulta nueva reemplaza el seguimiento pendiente de la anterior).
+export function ultimoSeguimientoPorMascota(historiales = []) {
+    const mapa = new Map();
+
+    for (const h of historiales) {
+        if (!h) continue;
+        const clave = h.mascotaId || "";
+        const fechaActual = (h.fecha || "").slice(0, 10);
+
+        if (!mapa.has(clave)) {
+            mapa.set(clave, h);
+        } else {
+            const existente = mapa.get(clave);
+            const fechaExistente = (existente.fecha || "").slice(0, 10);
+            if (fechaActual.localeCompare(fechaExistente) > 0) {
+                mapa.set(clave, h);
+            }
+        }
+    }
+
+    return Array.from(mapa.values());
+}
+
 // Junta las próximas citas de seguimiento (historial.proximaCita) y los
 // refuerzos de vacuna (vacuna.proximaFecha) de UNA mascota, y los separa
 // en "vencidos" (la fecha ya pasó) y "próximos" (vencen dentro de
 // DIAS_ALERTA_PROXIMO días).
 export function calcularPendientes(historiales = [], vacunas = [], hoy = new Date()) {
 
+    const historialesFiltrados = ultimoSeguimientoPorMascota(historiales);
+    const vacunasFiltradas = ultimaDosisPorVacuna(vacunas);
+
     const pendientes = [
-        ...historiales
+        ...historialesFiltrados
             .filter((h) => !!h.proximaCita)
             .map((h) => ({
                 tipo: "Cita de seguimiento",
                 fecha: h.proximaCita,
                 origen: h,
             })),
-        ...vacunas
+        ...vacunasFiltradas
             .filter((v) => !!v.proximaFecha)
             .map((v) => ({
                 tipo: `Refuerzo de ${v.nombre}`,
