@@ -80,8 +80,8 @@ export const crearPedido = async (datos) => {
             total,
             tipo,
             estado: "pendiente",
-            pagado: esEnLinea,
-            metodoPago: esEnLinea ? "En línea (prueba)" : "Pendiente",
+            pagado: false,
+            metodoPago: esEnLinea ? "En línea (simulado; por cobrar al retirar)" : "Pendiente",
             fechaPedido: ahora,
             fechaActualizacion: ahora,
             ...(limiteRetiro ? { fechaLimite: limiteRetiro } : {})
