@@ -9,7 +9,14 @@ export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha
         <tr className="border-b hover:bg-gray-50 text-gray-900">
 
             <td className="p-4 font-medium">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-50 text-sm font-bold text-blue-700">
+                        {mascota.fotoURL ? (
+                            <img src={mascota.fotoURL} alt={`Foto de ${mascota.nombre}`} className="h-full w-full object-cover" />
+                        ) : (
+                            (mascota.nombre || "?").charAt(0).toUpperCase()
+                        )}
+                    </div>
                     <span>{mascota.nombre}</span>
                     {mascota.estado === "Inactivo" && (
                         <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full font-normal border border-gray-300">

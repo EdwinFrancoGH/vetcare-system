@@ -7,6 +7,7 @@ export default function ModalFormulario({
     titulo,
     subtitulo,
     inicial = "",
+    fotoURL = "",
     avatarBg = "bg-gray-100 text-gray-700 border-gray-200",
     IconoEspecie = FaPaw,
     onCerrar,
@@ -50,7 +51,13 @@ export default function ModalFormulario({
                         <div
                             className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-2xl shrink-0 border ${avatarBg} transition-colors`}
                         >
-                            {inicial ? <span>{inicial}</span> : <IconoEspecie className="w-6 h-6" />}
+                            {fotoURL ? (
+                                <img src={fotoURL} alt="Foto de la mascota" className="h-full w-full rounded-full object-cover" />
+                            ) : inicial ? (
+                                <span>{inicial}</span>
+                            ) : (
+                                <IconoEspecie className="w-6 h-6" />
+                            )}
                         </div>
 
                         <div className="min-w-0 flex-1">

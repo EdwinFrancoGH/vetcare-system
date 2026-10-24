@@ -67,9 +67,13 @@ export default function MascotaCard({ mascota, vacunas = [], onEditar, onElimina
                         {/* Avatar circular con inicial y badge de especie */}
                         <div className="relative shrink-0">
                             <div
-                                className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-2xl border ${avatarBg}`}
+                                className={`w-14 h-14 overflow-hidden rounded-full flex items-center justify-center font-bold text-2xl border ${avatarBg}`}
                             >
-                                {(mascota.nombre || "?").charAt(0).toUpperCase()}
+                                {mascota.fotoURL ? (
+                                    <img src={mascota.fotoURL} alt={`Foto de ${mascota.nombre}`} className="h-full w-full object-cover" />
+                                ) : (
+                                    (mascota.nombre || "?").charAt(0).toUpperCase()
+                                )}
                             </div>
                             <div
                                 className={`absolute -bottom-1 -right-1 p-1 rounded-full bg-white shadow-sm border ${iconBadgeColor}`}
