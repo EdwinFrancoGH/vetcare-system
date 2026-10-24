@@ -61,12 +61,19 @@ export default function Sidebar({ abierto = false, onCerrar }) {
             )}
 
             <aside
-                className={`fixed inset-y-0 left-0 z-50 w-64 bg-blue-900 text-white min-h-screen flex flex-col transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:z-auto print:hidden ${
+                className={`vetcare-sidebar-background fixed inset-y-0 left-0 z-50 w-64 text-white min-h-screen flex flex-col transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:z-auto print:hidden ${
                     abierto ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
-                <div className="text-3xl font-bold p-6 border-b border-blue-700 flex items-center justify-between">
-                    <span>VetCare</span>
+                <div className="flex items-center justify-between gap-2 border-b border-blue-700 px-4 py-3">
+                    <span className="text-3xl font-bold">VetCare</span>
+                    <img
+                        src="/images/cat-vetcare.png?v=2"
+                        alt="Gatito veterinario"
+                        width="52"
+                        height="72"
+                        className="h-[4.5rem] w-[3.25rem] shrink-0 object-contain"
+                    />
                     {/* Botón X para cerrar en móviles */}
                     <button
                         type="button"

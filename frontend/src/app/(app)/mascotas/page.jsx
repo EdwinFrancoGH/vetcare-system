@@ -86,7 +86,7 @@ function MascotasPage() {
         <div>
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                 <div>
-                    <h1 className="text-4xl font-bold text-gray-900">
+                    <h1 className="text-2xl font-bold text-gray-900 sm:text-4xl">
                         {esCliente ? "Mis Mascotas" : "Gestión de Mascotas"}
                     </h1>
                     {esCliente && (
@@ -101,7 +101,7 @@ function MascotasPage() {
                         setMascotaEditar(null);
                         setMostrarFormulario(true);
                     }}
-                    className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2 rounded-lg font-medium shadow-sm transition-colors self-start sm:self-auto"
+                    className="shrink-0 bg-blue-700 hover:bg-blue-800 text-white px-5 py-2 rounded-lg font-medium shadow-sm transition-colors self-start sm:self-auto"
                 >
                     Nueva Mascota
                 </button>

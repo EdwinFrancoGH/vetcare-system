@@ -1,5 +1,9 @@
 import { auth, db } from '../config/firebase.js';
 
+const MASTER_ADMIN_EMAIL = 'vladfranco1997@gmail.com';
+const isMasterAdminEmail = (email) =>
+    typeof email === 'string' && email.trim().toLowerCase() === MASTER_ADMIN_EMAIL;
+
 // Obtener el perfil del usuario autenticado
 export const getProfile = async (req, res) => {
     try {
@@ -91,7 +95,19 @@ export const updateUserRole = async (req, res) => {
             return res.status(403).json({ error: 'No puedes cambiar tu propio rol por razones de seguridad' });
         }
 
-        await db.collection('usuarios').doc(uid).update({ role });
+        const targetUserRef = db.collection('usuarios').doc(uid);
+        const targetUserSnapshot = await targetUserRef.get();
+        if (!targetUserSnapshot.exists) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+        const targetUser = targetUserSnapshot.data();
+        const targetAuthUser = await auth.getUser(uid);
+        const isMasterAdmin = isMasterAdminEmail(targetUser.email) || isMasterAdminEmail(targetAuthUser.email);
+        if (isMasterAdmin && role !== 'Administrador') {
+            return res.status(403).json({ error: 'No puedes quitar el rol del superadministrador.' });
+        }
+
+        await targetUserRef.update({ role });
 
         res.status(200).json({ message: 'Rol de usuario actualizado exitosamente' });
     } catch (error) {
@@ -107,6 +123,13 @@ export const deleteUser = async (req, res) => {
 
         if (req.user.uid === uid) {
             return res.status(403).json({ error: 'No puedes eliminar tu propia cuenta' });
+        }
+
+        const targetUserSnapshot = await db.collection('usuarios').doc(uid).get();
+        const targetAuthUser = await auth.getUser(uid);
+        const isMasterAdmin = isMasterAdminEmail(targetUserSnapshot.data()?.email) || isMasterAdminEmail(targetAuthUser.email);
+        if (isMasterAdmin) {
+            return res.status(403).json({ error: 'No puedes eliminar al superadministrador.' });
         }
 
         await auth.deleteUser(uid);
@@ -136,6 +159,33 @@ export const updateUser = async (req, res) => {
 
         if (req.user.uid === uid && role !== 'Administrador') {
             return res.status(403).json({ error: 'No puedes quitarte el rol de Administrador a ti mismo' });
+        }
+
+        const targetUserRef = db.collection('usuarios').doc(uid);
+        const targetUserSnapshot = await targetUserRef.get();
+        if (!targetUserSnapshot.exists) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        const targetUser = targetUserSnapshot.data();
+        const targetAuthUser = await auth.getUser(uid);
+        const isMasterAdmin = isMasterAdminEmail(targetUser.email) || isMasterAdminEmail(targetAuthUser.email);
+        if (isMasterAdmin) {
+            if (password) {
+                return res.status(403).json({
+                    error: 'La contraseña del superadministrador solo puede cambiarse desde el enlace enviado a su correo.'
+                });
+            }
+            if (email.trim().toLowerCase() !== targetAuthUser.email?.trim().toLowerCase()) {
+                return res.status(403).json({
+                    error: 'El correo del superadministrador no puede cambiarse desde el gestor de usuarios.'
+                });
+            }
+            if (req.user.uid !== uid && role !== targetUser.role) {
+                return res.status(403).json({
+                    error: 'Solo el titular puede modificar los datos de la cuenta superadministradora.'
+                });
+            }
         }
 
         const updateDataAuth = {
@@ -177,6 +227,14 @@ export const updateProfile = async (req, res) => {
     try {
         const uid = req.user.uid;
         const { name, password, photoURL } = req.body;
+
+        if (password) {
+            if (isMasterAdminEmail(req.user.email)) {
+                return res.status(403).json({
+                    error: 'Por seguridad, cambia la contraseña desde el enlace enviado al correo del superadministrador.'
+                });
+            }
+        }
 
         if (!name && !password && photoURL === undefined) {
             return res.status(400).json({ error: 'No hay datos para actualizar' });

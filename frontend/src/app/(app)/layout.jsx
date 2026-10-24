@@ -14,16 +14,16 @@ export default function AppLayout({ children }) {
 
     return (
         <ProtectedRoute>
-            <div className="flex bg-gray-100 min-h-screen print:bg-white print:min-h-0">
+            <div className="flex h-dvh min-h-screen w-full overflow-hidden bg-gray-100 print:h-auto print:min-h-0 print:overflow-visible print:bg-white">
                 <Sidebar
                     abierto={sidebarAbierto}
                     onCerrar={() => setSidebarAbierto(false)}
                 />
 
-                <div className="flex-1 flex flex-col min-w-0">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col print:min-h-screen">
                     <Navbar onAbrirMenu={() => setSidebarAbierto(true)} />
 
-                    <main className="p-4 md:p-8 print:p-0">
+                    <main className="vetcare-panel-background min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 print:overflow-visible print:p-0">
                         {children}
                     </main>
                 </div>

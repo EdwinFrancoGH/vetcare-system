@@ -93,7 +93,7 @@ export default function MascotasTable({ mascotas = [], onEditar, onEliminar, mos
             {/* Tabla */}
             <div className="bg-white rounded-xl shadow overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full">
+                    <table className="min-w-[640px] w-full">
                         <thead className="bg-blue-900 text-white">
                             <tr>
                                 <th className="p-4 text-left">Nombre</th>

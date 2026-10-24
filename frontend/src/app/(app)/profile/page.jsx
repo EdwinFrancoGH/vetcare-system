@@ -7,8 +7,13 @@ import Swal from 'sweetalert2';
 import { actualizarPerfil } from '../../../services/users.service';
 import { resizeImageToBase64 } from '../../../utils/image';
 
+const MASTER_ADMIN_EMAIL = 'vladfranco1997@gmail.com';
+const isMasterAdminEmail = (email) =>
+  typeof email === 'string' && email.trim().toLowerCase() === MASTER_ADMIN_EMAIL;
+
 export default function ProfilePage() {
-  const { user, userData, refreshUserData } = useAuth();
+  const { user, userData, resetPassword, refreshUserData } = useAuth();
+  const isMasterAdmin = isMasterAdminEmail(user?.email);
   const fileInputRef = useRef(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -27,6 +32,7 @@ export default function ProfilePage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: displayData.name,
     password: ''
@@ -39,6 +45,24 @@ export default function ProfilePage() {
 
   const handlePhotoClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleSendPasswordReset = async () => {
+    if (!isMasterAdmin || !user?.email) return;
+    setIsSendingPasswordReset(true);
+    try {
+      await resetPassword(user.email);
+      Swal.fire(
+        'Correo enviado',
+        `Enviamos el enlace para cambiar la contraseña a ${user.email}. La clave solo cambiará al abrirlo desde ese correo.`,
+        'success'
+      );
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Error', 'No se pudo enviar el enlace de cambio de contraseña.', 'error');
+    } finally {
+      setIsSendingPasswordReset(false);
+    }
   };
 
   const handlePhotoChange = async (e) => {
@@ -222,7 +246,22 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div>
+              {isMasterAdmin ? (
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                  <label className="block text-sm font-medium text-indigo-900 mb-1">Contraseña</label>
+                  <p className="text-sm text-indigo-800">
+                    Para cambiar la contraseña de administrador, confirma el cambio desde el correo registrado.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSendPasswordReset}
+                    disabled={isSendingPasswordReset}
+                    className="mt-3 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                  >
+                    {isSendingPasswordReset ? 'Enviando correo…' : 'Enviar enlace de confirmación'}
+                  </button>
+                </div>
+              ) : <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">
                   Nueva Contraseña <span className="text-xs text-zinc-400 font-normal ml-1">(Opcional)</span>
                 </label>
@@ -233,7 +272,7 @@ export default function ProfilePage() {
                   className="w-full px-4 py-3 rounded-xl bg-zinc-50 border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-zinc-800"
                   placeholder="Dejar en blanco para no cambiar"
                 />
-              </div>
+              </div>}
 
               <div className="flex gap-3 pt-4">
                 <button
