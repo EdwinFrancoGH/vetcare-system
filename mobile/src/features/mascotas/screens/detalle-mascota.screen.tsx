@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
@@ -10,10 +9,12 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
+import { VetCareBackground } from '@/components/vetcare-background';
 
 import { auth } from '@/config/firebase';
 import {
@@ -38,6 +39,7 @@ type Mascota = {
   telefono: string;
   direccion: string;
   estado: string;
+  fotoURL?: string;
   foto?: string;
   imagen?: string;
 };
@@ -66,6 +68,13 @@ type Vacuna = {
   observaciones?: string;
 };
 
+type NotaClinica = {
+  id: string;
+  fecha: string;
+  categoria: 'Consulta' | 'Vacuna';
+  texto: string;
+};
+
 export default function DetalleMascotaScreen() {
   const router = useRouter();
 
@@ -76,15 +85,32 @@ export default function DetalleMascotaScreen() {
   const [historiales, setHistoriales] = useState<Historial[]>([]);
   const [vacunas, setVacunas] = useState<Vacuna[]>([]);
 
-  const [pestanaActiva, setPestanaActiva] = useState<
-    'informacion' | 'salud'
-  >('informacion');
+  const [pestanaActiva, setPestanaActiva] = useState<'informacion' | 'salud' | 'notas'>('informacion');
 
   const [cargando, setCargando] = useState(true);
   const [cargandoSalud, setCargandoSalud] = useState(false);
 
   const [error, setError] = useState('');
   const [errorSalud, setErrorSalud] = useState('');
+
+  const notasClinicas: NotaClinica[] = [
+    ...historiales
+      .filter((historial) => Boolean(historial.observaciones?.trim()))
+      .map((historial) => ({
+        id: `consulta-${historial.id || historial.fecha}`,
+        fecha: historial.fecha,
+        categoria: 'Consulta' as const,
+        texto: historial.observaciones!.trim(),
+      })),
+    ...vacunas
+      .filter((vacuna) => Boolean(vacuna.observaciones?.trim()))
+      .map((vacuna) => ({
+        id: `vacuna-${vacuna.id || vacuna.fecha}`,
+        fecha: vacuna.fecha,
+        categoria: 'Vacuna' as const,
+        texto: vacuna.observaciones!.trim(),
+      })),
+  ].sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   const cargarMascota = useCallback(async () => {
     try {
@@ -251,12 +277,10 @@ export default function DetalleMascotaScreen() {
     }
   };
 
-  const cambiarPestana = (
-    pestana: 'informacion' | 'salud'
-  ) => {
+  const cambiarPestana = (pestana: 'informacion' | 'salud' | 'notas') => {
     setPestanaActiva(pestana);
 
-    if (pestana === 'salud') {
+    if (pestana === 'salud' || pestana === 'notas') {
       cargarSalud();
     }
   };
@@ -317,24 +341,21 @@ export default function DetalleMascotaScreen() {
 
   if (cargando) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
-          />
-
-          <Text style={styles.loadingText}>
-            Cargando información...
-          </Text>
-        </View>
-      </SafeAreaView>
+      <VetCareBackground>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Cargando información...</Text>
+          </View>
+        </SafeAreaView>
+      </VetCareBackground>
     );
   }
 
   if (error || !mascota) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <VetCareBackground>
+        <SafeAreaView style={styles.safeArea}>
         <View style={styles.errorContainer}>
           <View style={styles.errorIcon}>
             <Ionicons
@@ -370,12 +391,14 @@ export default function DetalleMascotaScreen() {
             </Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </VetCareBackground>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <VetCareBackground>
+      <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
 
         {/* =========================================
@@ -445,9 +468,9 @@ export default function DetalleMascotaScreen() {
             </View>
 
             <View style={styles.petIcon}>
-              {mascota.foto || mascota.imagen ? (
+              {mascota.fotoURL || mascota.foto || mascota.imagen ? (
                 <Image
-                  source={{ uri: mascota.foto || mascota.imagen }}
+                  source={{ uri: mascota.fotoURL || mascota.foto || mascota.imagen }}
                   style={styles.petDetailImage}
                 />
               ) : (
@@ -503,11 +526,12 @@ export default function DetalleMascotaScreen() {
 
             <Pressable
               style={styles.tab}
-              onPress={() => console.log('Notas')}
+              onPress={() => cambiarPestana('notas')}
             >
-              <Text style={styles.tabText}>
+              <Text style={pestanaActiva === 'notas' ? styles.activeTabText : styles.tabText}>
                 Notas
               </Text>
+              {pestanaActiva === 'notas' && <View style={styles.activeIndicator} />}
             </Pressable>
 
           </View>
@@ -797,6 +821,50 @@ export default function DetalleMascotaScreen() {
             </View>
           )}
 
+          {pestanaActiva === 'notas' && (
+            <View style={styles.healthSection}>
+              {cargandoSalud ? (
+                <View style={styles.healthLoading}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Cargando notas...</Text>
+                </View>
+              ) : errorSalud ? (
+                <View style={styles.healthError}>
+                  <Ionicons name="alert-circle-outline" size={36} color={colors.primary} />
+                  <Text style={styles.healthErrorText}>{errorSalud}</Text>
+                  <Pressable style={styles.retryButton} onPress={cargarSalud}>
+                    <Text style={styles.retryButtonText}>Reintentar</Text>
+                  </Pressable>
+                </View>
+              ) : notasClinicas.length ? (
+                <>
+                  <View style={styles.healthHeader}>
+                    <Ionicons name="document-text-outline" size={21} color={colors.primary} />
+                    <Text style={styles.healthTitle}>Notas clínicas</Text>
+                  </View>
+                  {notasClinicas.map((nota) => (
+                    <View key={nota.id} style={styles.noteCard}>
+                      <View style={styles.noteHeader}>
+                        <View style={styles.noteCategory}>
+                          <Ionicons name={nota.categoria === 'Consulta' ? 'medical-outline' : 'shield-checkmark-outline'} size={17} color={colors.primary} />
+                          <Text style={styles.noteCategoryText}>{nota.categoria}</Text>
+                        </View>
+                        <Text style={styles.noteDate}>{formatearFecha(nota.fecha)}</Text>
+                      </View>
+                      <Text style={styles.noteText}>{nota.texto}</Text>
+                    </View>
+                  ))}
+                </>
+              ) : (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="document-text-outline" size={34} color="#9CA3AF" />
+                  <Text style={styles.emptyTitle}>Sin notas registradas</Text>
+                  <Text style={styles.emptyText}>Las notas de consultas y vacunas aparecerán aquí cuando el equipo veterinario las registre.</Text>
+                </View>
+              )}
+            </View>
+          )}
+
         </ScrollView>
 
         {/* =========================================
@@ -846,7 +914,7 @@ export default function DetalleMascotaScreen() {
 
           <Pressable
             style={styles.navItem}
-            onPress={() => console.log('Citas')}
+            onPress={() => router.push('/citas')}
           >
             <Ionicons
               name="calendar-outline"
@@ -859,27 +927,28 @@ export default function DetalleMascotaScreen() {
             </Text>
           </Pressable>
 
-          {/* Perfil */}
+          {/* Tienda */}
 
           <Pressable
             style={styles.navItem}
-            onPress={() => router.push('/explore')}
+            onPress={() => router.push('/tienda')}
           >
             <Ionicons
-              name="person-outline"
+              name="bag-handle-outline"
               size={22}
               color="#9CA3AF"
             />
 
             <Text style={styles.navText}>
-              Perfil
+              Tienda
             </Text>
           </Pressable>
 
         </View>
 
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </VetCareBackground>
   );
 }
 
@@ -917,12 +986,12 @@ const styles = StyleSheet.create({
 
   safeArea: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'transparent',
   },
 
   screen: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'transparent',
   },
 
   scroll: {
@@ -961,7 +1030,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 18,
@@ -1091,7 +1160,7 @@ const styles = StyleSheet.create({
   tabs: {
     height: 66,
     marginTop: 0,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
@@ -1292,7 +1361,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1327,6 +1396,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
+  noteCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    elevation: 1,
+  },
+  noteHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
+  noteCategory: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  noteCategoryText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
+  noteDate: { color: '#6B7280', fontSize: 12 },
+  noteText: { color: '#1F2937', fontSize: 14, lineHeight: 21 },
+
   /* =========================================
      BARRA INFERIOR
   ========================================= */
@@ -1350,13 +1432,13 @@ const styles = StyleSheet.create({
 
   navText: {
     color: '#6B7280',
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 3,
   },
 
   navTextActive: {
     color: colors.primary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 3,
   },

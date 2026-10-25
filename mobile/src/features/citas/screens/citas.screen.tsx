@@ -3,22 +3,24 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Colors } from '@/constants/theme';
+import { VetCareBackground } from '@/components/vetcare-background';
 import { auth } from '@/config/firebase';
 import { listarMascotas } from '@/features/mascotas/services/mascotas.service';
 import { listarCitasDeMascota } from '@/features/citas/services/citas.service';
 
 const colors = {
-  primary: '#6D28D9',
-  primaryLight: '#EDE9FE',
-  background: '#F5F6F8',
+  primary: Colors.light.primary,
+  primaryLight: Colors.light.backgroundSelected,
+  background: 'transparent',
   white: '#FFFFFF',
   text: '#1F2937',
   secondary: '#6B7280',
@@ -338,23 +340,26 @@ export default function CitasScreen() {
 
   if (cargando) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.center}>
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
-          />
-          <Text style={styles.loadingText}>
-            Cargando citas...
-          </Text>
-        </View>
-      </SafeAreaView>
+      <VetCareBackground>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.center}>
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+            />
+            <Text style={styles.loadingText}>
+              Cargando citas...
+            </Text>
+          </View>
+        </SafeAreaView>
+      </VetCareBackground>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <VetCareBackground>
+        <SafeAreaView style={styles.safeArea}>
         <View style={styles.center}>
           <Ionicons
             name="alert-circle-outline"
@@ -377,12 +382,14 @@ export default function CitasScreen() {
             <Text style={styles.linkText}>Volver a citas</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </VetCareBackground>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <VetCareBackground>
+      <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
           <View>
@@ -515,30 +522,31 @@ export default function CitasScreen() {
 
           <Pressable
             style={styles.navItem}
-            onPress={() => router.replace('/explore')}
+            onPress={() => router.push('/tienda')}
             hitSlop={12}
           >
             <Ionicons
-              name="person-outline"
+              name="bag-handle-outline"
               size={23}
               color={colors.secondary}
             />
-            <Text style={styles.navText}>Perfil</Text>
+            <Text style={styles.navText}>Tienda</Text>
           </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </VetCareBackground>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   header: {
     height: 95,

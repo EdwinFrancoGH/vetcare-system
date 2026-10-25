@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
@@ -10,10 +9,12 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors } from '@/constants/theme';
+import { VetCareBackground } from '@/components/vetcare-background';
 import { auth } from '@/config/firebase';
 import { listarMascotas } from '@/features/mascotas/services/mascotas.service';
 
@@ -33,6 +34,7 @@ type Mascota = {
   telefono?: string;
   direccion?: string;
   estado?: string;
+  fotoURL?: string;
   foto?: string;
   imagen?: string;
 };
@@ -128,6 +130,10 @@ export default function MascotasScreen() {
   );
 
   const obtenerImagen = (mascota: Mascota) => {
+    if (mascota.fotoURL) {
+      return mascota.fotoURL;
+    }
+
     if (mascota.foto) {
       return mascota.foto;
     }
@@ -136,11 +142,7 @@ export default function MascotasScreen() {
       return mascota.imagen;
     }
 
-    if (mascota.especie?.toLowerCase() === 'gato') {
-      return 'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=300';
-    }
-
-    return 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=300';
+    return '';
   };
 
   const formatearSexo = (sexo: string) => {
@@ -160,7 +162,8 @@ export default function MascotasScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <VetCareBackground>
+      <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
 
         {/* HEADER */}
@@ -294,14 +297,7 @@ export default function MascotasScreen() {
                 }
               >
 
-                <View style={styles.petImageContainer}>
-                  <Image
-                    source={{
-                      uri: obtenerImagen(mascota),
-                    }}
-                    style={styles.petImage}
-                  />
-                </View>
+                <PetPhoto uri={obtenerImagen(mascota)} />
 
                 <View style={styles.petInfo}>
 
@@ -413,30 +409,47 @@ export default function MascotasScreen() {
             </Text>
           </Pressable>
 
-          {/* PERFIL */}
+          {/* TIENDA */}
           <Pressable
             style={styles.navItem}
             onPress={() => {
               console.log('ABRIENDO PERFIL DESDE MASCOTAS');
-              router.push('/explore');
+              router.push('/tienda');
             }}
             hitSlop={12}
           >
             <Ionicons
-              name="person-outline"
+              name="bag-handle-outline"
               size={21}
               color="#9CA3AF"
             />
 
             <Text style={styles.navText}>
-              Perfil
+              Tienda
             </Text>
           </Pressable>
 
         </View>
 
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </VetCareBackground>
+  );
+}
+
+function PetPhoto({ uri }: { uri: string }) {
+  const [error, setError] = useState(false);
+
+  return (
+    <View style={styles.petImageContainer}>
+      {uri && !error ? (
+        <Image source={{ uri }} style={styles.petImage} onError={() => setError(true)} />
+      ) : (
+        <View style={styles.petImagePlaceholder}>
+          <Ionicons name="paw" size={28} color={colors.primary} />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -444,12 +457,12 @@ const styles = StyleSheet.create({
 
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F6F8',
+    backgroundColor: 'transparent',
   },
 
   screen: {
     flex: 1,
-    backgroundColor: '#F5F6F8',
+    backgroundColor: 'transparent',
   },
 
   scroll: {
@@ -470,7 +483,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    backgroundColor: '#F5F6F8',
+    backgroundColor: 'transparent',
     zIndex: 10,
     elevation: 10,
   },
@@ -486,7 +499,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 20,
@@ -526,6 +539,14 @@ const styles = StyleSheet.create({
   petImage: {
     width: '100%',
     height: '100%',
+  },
+
+  petImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   petInfo: {

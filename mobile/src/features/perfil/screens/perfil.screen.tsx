@@ -5,13 +5,13 @@ import {
   Image,
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
@@ -20,6 +20,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { auth } from '@/config/firebase';
 import { API_URL } from '@/config/api';
 import { Colors } from '@/constants/theme';
+import { VetCareBackground } from '@/components/vetcare-background';
 
 const colors = Colors.light;
 
@@ -177,7 +178,8 @@ export default function PerfilScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <VetCareBackground>
+      <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headingRow}>
@@ -243,7 +245,7 @@ export default function PerfilScreen() {
           <NavItem icon="home-outline" label="Inicio" onPress={() => router.replace('/home')} />
           <NavItem icon="paw-outline" label="Mascotas" onPress={() => router.push('/mascotas')} />
           <NavItem icon="calendar-outline" label="Citas" onPress={() => router.push('/citas')} />
-          <NavItem icon="person" label="Perfil" active onPress={() => router.replace('/explore')} />
+          <NavItem icon="bag-handle-outline" label="Tienda" onPress={() => router.push('/tienda')} />
         </View>
 
         <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
@@ -264,7 +266,8 @@ export default function PerfilScreen() {
           </View>
         </Modal>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </VetCareBackground>
   );
 }
 
@@ -287,11 +290,11 @@ function NavItem({ icon, label, active = false, onPress }: { icon: React.Compone
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F6F8' },
-  screen: { flex: 1, backgroundColor: '#F5F6F8' },
+  safeArea: { flex: 1, backgroundColor: 'transparent' },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { paddingHorizontal: 20, paddingBottom: 24 },
   headingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 20 },
-  backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center' },
+  backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
   pageTitle: { flex: 1, marginLeft: 12, color: '#1F2937', fontSize: 22, fontWeight: '700' },
   headingSpacer: { width: 42 },
   loader: { marginTop: 60 },
@@ -299,7 +302,7 @@ const styles = StyleSheet.create({
   errorText: { color: '#B91C1C', fontSize: 14, textAlign: 'center' },
   retryText: { color: colors.primary, fontWeight: '700', marginTop: 12 },
   identity: { alignItems: 'center', marginTop: 6, marginBottom: 22 },
-  avatar: { width: 104, height: 104, borderRadius: 52, borderWidth: 2, borderColor: colors.primary, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center', overflow: 'visible', position: 'relative' },
+  avatar: { width: 104, height: 104, borderRadius: 52, borderWidth: 2, borderColor: colors.primary, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', overflow: 'visible', position: 'relative' },
   avatarImage: { width: '100%', height: '100%', borderRadius: 50 },
   cameraBadge: { position: 'absolute', right: -4, bottom: -2, width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   name: { color: '#1F2937', fontSize: 21, fontWeight: '700', marginTop: 10 },
@@ -311,7 +314,7 @@ const styles = StyleSheet.create({
   infoValue: { color: '#1F2937', fontSize: 14, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
   note: { color: '#6B7280', fontSize: 12, lineHeight: 18, paddingVertical: 14 },
   actionCard: { minHeight: 62, backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 12, elevation: 1 },
-  actionIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  actionIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   actionText: { flex: 1, color: '#1F2937', fontSize: 15, fontWeight: '600' },
   logoutButton: { minHeight: 52, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEE2E2', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 6, marginBottom: 12 },
   logoutText: { color: '#DC2626', fontSize: 16, fontWeight: '600' },

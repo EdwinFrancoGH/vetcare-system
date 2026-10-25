@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  SafeAreaView,
+  Modal,
   StyleSheet,
   Text,
   View,
@@ -11,29 +11,28 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Colors } from '@/constants/theme';
+import { VetCareBackground } from '@/components/vetcare-background';
+import { API_URL } from '@/config/api';
 import { auth } from '@/config/firebase';
 import { crearMascota } from '@/features/mascotas/services/mascotas.service';
 
 const colors = Colors.light;
 
 const especies = [
-  'Perro',
-  'Gato',
-  'Ave',
-  'Conejo',
-  'Hámster',
-  'Reptil',
-  'Otro',
-];
-
-const estados = [
-  'Activo',
-  'Inactivo',
+  { nombre: 'Perro', icono: 'paw' as const },
+  { nombre: 'Gato', icono: 'paw' as const },
+  { nombre: 'Ave', icono: 'airplane' as const },
+  { nombre: 'Conejo', icono: 'paw' as const },
+  { nombre: 'Roedor', icono: 'ellipse' as const },
+  { nombre: 'Reptil', icono: 'leaf' as const },
+  { nombre: 'Pez', icono: 'fish' as const },
+  { nombre: 'Otro', icono: 'paw' as const },
 ];
 
 export default function AgregarMascotaScreen() {
@@ -41,28 +40,94 @@ export default function AgregarMascotaScreen() {
 
   const [nombre, setNombre] = useState('');
   const [especie, setEspecie] = useState('');
-  const [mostrarEspecies, setMostrarEspecies] = useState(false);
+  const [especieOtroTexto, setEspecieOtroTexto] = useState('');
 
   const [raza, setRaza] = useState('');
   const [fechaNacimiento, setFechaNacimiento] = useState('');
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
+  const [mesCalendario, setMesCalendario] = useState(() => new Date());
   const [sexo, setSexo] = useState('');
 
-  const [edad, setEdad] = useState('');
   const [peso, setPeso] = useState('');
   const [color, setColor] = useState('');
 
-  const [propietario, setPropietario] = useState('');
+  const [propietario, setPropietario] = useState(() => {
+    const usuario = auth.currentUser;
+    return usuario?.displayName?.trim() || usuario?.email?.split('@')[0] || '';
+  });
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
 
-  const [estado, setEstado] = useState('');
-  const [mostrarEstados, setMostrarEstados] = useState(false);
+  const [estado] = useState('Activo');
   const [foto, setFoto] = useState('');
   const [seleccionandoFoto, setSeleccionandoFoto] = useState(false);
+
+  const hoy = fechaHoyISO();
+  const diasCalendario = useMemo(() => obtenerDiasCalendario(mesCalendario), [mesCalendario]);
+  const especieOtroSeleccionada = especie === 'Otro' || !especies.some((item) => item.nombre === especie);
+
+  useEffect(() => {
+    let activa = true;
+    const usuario = auth.currentUser;
+    if (!usuario) return;
+
+    const nombreFallback = usuario.displayName?.trim() || usuario.email?.split('@')[0] || '';
+    const cargarNombrePerfil = async () => {
+      try {
+        const token = await usuario.getIdToken();
+        const response = await fetch(`${API_URL}/api/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const nombrePerfil = data?.user?.name?.trim();
+        const direccionPerfil = (data?.user?.direccion || data?.user?.address || '').trim();
+        if (activa && nombrePerfil) {
+          setPropietario((actual) => actual === nombreFallback || !actual ? nombrePerfil : actual);
+        }
+        if (activa && direccionPerfil) setDireccion((actual) => actual || direccionPerfil);
+      } catch {
+        // Se conserva el nombre disponible en Firebase si el perfil no responde.
+      }
+    };
+
+    void cargarNombrePerfil();
+    return () => { activa = false; };
+  }, []);
 
   const handleVolver = () => {
     console.log('REGRESANDO A MASCOTAS');
     router.replace('/mascotas');
+  };
+
+  const seleccionarEspecie = (valor: string) => {
+    if (valor === 'Otro') {
+      setEspecieOtroTexto('');
+      setEspecie('Otro');
+    } else {
+      setEspecie(valor);
+      setEspecieOtroTexto('');
+    }
+  };
+
+  const cambiarEspeciePersonalizada = (valor: string) => {
+    setEspecieOtroTexto(valor);
+    setEspecie(valor.trim() || 'Otro');
+  };
+
+  const abrirCalendario = () => {
+    const fechaSeleccionada = fechaNacimiento ? fechaDesdeISO(fechaNacimiento) : new Date();
+    setMesCalendario(new Date(fechaSeleccionada.getFullYear(), fechaSeleccionada.getMonth(), 1));
+    setMostrarCalendario(true);
+  };
+
+  const seleccionarFecha = (fechaISO: string) => {
+    setFechaNacimiento(fechaISO);
+    setMostrarCalendario(false);
+  };
+
+  const cambiarMesCalendario = (cambio: number) => {
+    setMesCalendario((actual) => new Date(actual.getFullYear(), actual.getMonth() + cambio, 1));
   };
 
   const seleccionarFoto = async () => {
@@ -90,7 +155,7 @@ export default function AgregarMascotaScreen() {
       if (!imagen.base64) throw new Error('No se pudo procesar la foto seleccionada.');
 
       const fotoComprimida = `data:image/jpeg;base64,${imagen.base64}`;
-      if (fotoComprimida.length > 1_400_000) {
+      if (fotoComprimida.length > 700_000) {
         throw new Error('La foto sigue siendo muy pesada. Selecciona otra imagen.');
       }
       setFoto(fotoComprimida);
@@ -134,18 +199,10 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
-    if (!edad.trim()) {
+    if (!fechaNacimiento.trim()) {
       Alert.alert(
         'Campo requerido',
-        'Ingresa la edad de la mascota.'
-      );
-      return;
-    }
-
-    if (Number(edad) < 0) {
-      Alert.alert(
-        'Edad inválida',
-        'La edad debe ser mayor o igual a cero.'
+        'Selecciona la fecha de nacimiento de la mascota.'
       );
       return;
     }
@@ -198,18 +255,15 @@ export default function AgregarMascotaScreen() {
       return;
     }
 
+    if (!/^((\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4})$/.test(telefono.trim())) {
+      Alert.alert('Teléfono inválido', 'Ingresa un número salvadoreño de 8 dígitos, por ejemplo 7123-4567.');
+      return;
+    }
+
     if (!direccion.trim()) {
       Alert.alert(
         'Campo requerido',
         'Ingresa la dirección.'
-      );
-      return;
-    }
-
-    if (!estado) {
-      Alert.alert(
-        'Campo requerido',
-        'Selecciona el estado de la mascota.'
       );
       return;
     }
@@ -241,7 +295,7 @@ export default function AgregarMascotaScreen() {
         especie,
         raza: raza.trim(),
         sexo,
-        edad: Number(edad),
+        edad: calcularEdadAnios(fechaNacimiento, hoy),
         peso: Number(peso),
         color: color.trim(),
         fechaNacimiento: fechaNacimiento.trim(),
@@ -249,7 +303,7 @@ export default function AgregarMascotaScreen() {
         telefono: telefono.trim(),
         direccion: direccion.trim(),
         estado,
-        ...(foto ? { foto } : {}),
+        ...(foto ? { fotoURL: foto } : {}),
       };
 
       console.log('Datos enviados:', mascota);
@@ -324,6 +378,7 @@ export default function AgregarMascotaScreen() {
   };
 
   return (
+    <VetCareBackground>
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
 
@@ -400,68 +455,39 @@ export default function AgregarMascotaScreen() {
 
           {/* ESPECIE */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>
-              Especie
-            </Text>
-
-            <Pressable
-              style={styles.inputWithIcon}
-              onPress={() =>
-                setMostrarEspecies(!mostrarEspecies)
-              }
-            >
-              <Text
-                style={[
-                  styles.selectText,
-                  !especie && styles.placeholderText,
-                ]}
-              >
-                {especie || 'Seleccionar especie'}
-              </Text>
-
-              <Ionicons
-                name={
-                  mostrarEspecies
-                    ? 'chevron-up'
-                    : 'chevron-down'
-                }
-                size={20}
-                color="#9CA3AF"
-              />
-            </Pressable>
-
-            {mostrarEspecies && (
-              <View style={styles.optionsContainer}>
-                {especies.map((item) => (
+            <Text style={styles.label}>Especie <Text style={styles.required}>*</Text></Text>
+            <View style={styles.speciesGrid}>
+              {especies.map((item) => {
+                const seleccionada = item.nombre === 'Otro'
+                  ? especieOtroSeleccionada
+                  : especie === item.nombre;
+                return (
                   <Pressable
-                    key={item}
-                    style={styles.option}
-                    onPress={() => {
-                      setEspecie(item);
-                      setMostrarEspecies(false);
-                    }}
+                    key={item.nombre}
+                    style={[styles.speciesButton, seleccionada && styles.speciesButtonActive]}
+                    onPress={() => seleccionarEspecie(item.nombre)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: seleccionada }}
                   >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        especie === item &&
-                          styles.optionTextActive,
-                      ]}
-                    >
-                      {item}
-                    </Text>
-
-                    {especie === item && (
-                      <Ionicons
-                        name="checkmark"
-                        size={20}
-                        color={colors.primary}
-                      />
-                    )}
+                    <Ionicons name={item.icono} size={21} color={seleccionada ? colors.primary : '#4B5563'} />
+                    <Text style={[styles.speciesText, seleccionada && styles.speciesTextActive]}>{item.nombre}</Text>
                   </Pressable>
-                ))}
+                );
+              })}
+            </View>
+            {especieOtroSeleccionada ? (
+              <View style={styles.otherSpeciesContainer}>
+                <Text style={styles.optionalLabel}>Especifica la especie (opcional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej. Hurón, Erizo, Caballo"
+                  placeholderTextColor="#9CA3AF"
+                  value={especieOtroTexto}
+                  onChangeText={cambiarEspeciePersonalizada}
+                  autoCapitalize="words"
+                />
               </View>
-            )}
+            ) : null}
           </View>
 
           {/* RAZA */}
@@ -483,47 +509,16 @@ export default function AgregarMascotaScreen() {
           {/* FECHA DE NACIMIENTO */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>
-              Fecha de nacimiento
+              Fecha de nacimiento <Text style={styles.required}>*</Text>
             </Text>
 
-            <View style={styles.inputWithIcon}>
-              <TextInput
-                style={styles.inputSelect}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor="#9CA3AF"
-                value={fechaNacimiento}
-                onChangeText={setFechaNacimiento}
-                keyboardType="numeric"
-              />
-
-              <Ionicons
-                name="calendar-outline"
-                size={20}
-                color="#9CA3AF"
-              />
-            </View>
-          </View>
-
-          {/* EDAD */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>
-              Edad
-            </Text>
-
-            <View style={styles.inputWithUnit}>
-              <TextInput
-                style={styles.inputWeight}
-                placeholder="Ej. 5"
-                placeholderTextColor="#9CA3AF"
-                value={edad}
-                onChangeText={setEdad}
-                keyboardType="numeric"
-              />
-
-              <Text style={styles.unitText}>
-                años
+            <Pressable style={styles.inputWithIcon} onPress={abrirCalendario} accessibilityRole="button" accessibilityLabel="Elegir fecha de nacimiento">
+              <Text style={[styles.selectText, !fechaNacimiento && styles.placeholderText]}>
+                {fechaNacimiento ? formatearFecha(fechaNacimiento) : 'Seleccionar fecha'}
               </Text>
-            </View>
+              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            </Pressable>
+            {fechaNacimiento ? <Text style={styles.ageHint}>Edad aproximada: {etiquetaEdad(fechaNacimiento, hoy)}</Text> : null}
           </View>
 
           {/* SEXO */}
@@ -685,72 +680,6 @@ export default function AgregarMascotaScreen() {
             />
           </View>
 
-          {/* ESTADO */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>
-              Estado
-            </Text>
-
-            <Pressable
-              style={styles.inputWithIcon}
-              onPress={() =>
-                setMostrarEstados(!mostrarEstados)
-              }
-            >
-              <Text
-                style={[
-                  styles.selectText,
-                  !estado && styles.placeholderText,
-                ]}
-              >
-                {estado || 'Seleccionar estado'}
-              </Text>
-
-              <Ionicons
-                name={
-                  mostrarEstados
-                    ? 'chevron-up'
-                    : 'chevron-down'
-                }
-                size={20}
-                color="#9CA3AF"
-              />
-            </Pressable>
-
-            {mostrarEstados && (
-              <View style={styles.optionsContainer}>
-                {estados.map((item) => (
-                  <Pressable
-                    key={item}
-                    style={styles.option}
-                    onPress={() => {
-                      setEstado(item);
-                      setMostrarEstados(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        estado === item &&
-                          styles.optionTextActive,
-                      ]}
-                    >
-                      {item}
-                    </Text>
-
-                    {estado === item && (
-                      <Ionicons
-                        name="checkmark"
-                        size={20}
-                        color={colors.primary}
-                      />
-                    )}
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </View>
-
           {/* GUARDAR */}
           <Pressable
             style={styles.saveButton}
@@ -779,20 +708,94 @@ export default function AgregarMascotaScreen() {
 
         </ScrollView>
 
+        <View style={styles.bottomNav}>
+          <NavItem icon="home-outline" label="Inicio" onPress={() => router.replace('/home')} />
+          <NavItem icon="paw" label="Mascotas" active onPress={() => router.replace('/mascotas')} />
+          <NavItem icon="calendar-outline" label="Citas" onPress={() => router.push('/citas')} />
+          <NavItem icon="bag-handle-outline" label="Tienda" onPress={() => router.push('/tienda')} />
+        </View>
+
       </View>
     </SafeAreaView>
+    <Modal visible={mostrarCalendario} transparent animationType="fade" onRequestClose={() => setMostrarCalendario(false)}>
+      <View style={styles.calendarOverlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setMostrarCalendario(false)} accessibilityLabel="Cerrar calendario" />
+        <View style={styles.calendarCard}>
+          <View style={styles.calendarTitleRow}>
+            <View>
+              <Text style={styles.calendarEyebrow}>SALUD</Text>
+              <Text style={styles.calendarTitle}>Fecha de nacimiento</Text>
+            </View>
+            <Pressable style={styles.calendarClose} onPress={() => setMostrarCalendario(false)} accessibilityLabel="Cerrar calendario">
+              <Ionicons name="close" size={21} color="#4B5563" />
+            </Pressable>
+          </View>
+
+          <View style={styles.calendarMonthRow}>
+            <Pressable style={styles.calendarArrow} onPress={() => cambiarMesCalendario(-1)} accessibilityLabel="Mes anterior">
+              <Ionicons name="chevron-back" size={20} color={colors.primary} />
+            </Pressable>
+            <Text style={styles.calendarMonth}>
+              {capitalizar(mesCalendario.toLocaleDateString('es-SV', { month: 'long', year: 'numeric' }))}
+            </Text>
+            <Pressable style={styles.calendarArrow} onPress={() => cambiarMesCalendario(1)} disabled={mesCalendario.getFullYear() === fechaDesdeISO(hoy).getFullYear() && mesCalendario.getMonth() >= fechaDesdeISO(hoy).getMonth()} accessibilityLabel="Mes siguiente">
+              <Ionicons name="chevron-forward" size={20} color={mesCalendario.getFullYear() === fechaDesdeISO(hoy).getFullYear() && mesCalendario.getMonth() >= fechaDesdeISO(hoy).getMonth() ? '#CBD5E1' : colors.primary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'].map((dia, index) => (
+              <Text key={`${dia}-${index}`} style={styles.calendarWeekday}>{dia}</Text>
+            ))}
+            {diasCalendario.map((dia) => {
+              const fechaISO = fechaDateToISO(dia);
+              const fueraDelMes = dia.getMonth() !== mesCalendario.getMonth();
+              const seleccionado = fechaISO === fechaNacimiento;
+              const deshabilitado = fueraDelMes || fechaISO > hoy;
+              return (
+                <Pressable
+                  key={fechaISO}
+                  style={[styles.calendarDay, fueraDelMes && styles.calendarDayOutside, seleccionado && styles.calendarDaySelected, deshabilitado && styles.calendarDayDisabled]}
+                  onPress={() => seleccionarFecha(fechaISO)}
+                  disabled={deshabilitado}
+                  accessibilityLabel={dia.toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  accessibilityState={{ selected: seleccionado, disabled: deshabilitado }}
+                >
+                  <Text style={[styles.calendarDayText, fueraDelMes && styles.calendarDayOutsideText, seleccionado && styles.calendarDaySelectedText, deshabilitado && styles.calendarDayDisabledText]}>{dia.getDate()}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={styles.calendarHint}>No se pueden seleccionar fechas futuras.</Text>
+          <Pressable style={styles.calendarTodayButton} onPress={() => seleccionarFecha(hoy)}>
+            <Text style={styles.calendarTodayText}>Usar hoy</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+    </VetCareBackground>
+  );
+}
+
+function NavItem({ icon, label, active = false, onPress }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; active?: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={styles.navItem} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <Ionicons name={icon} size={21} color={active ? colors.primary : '#9CA3AF'} />
+      <Text style={active ? styles.navTextActive : styles.navText}>{label}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F6F8',
+    backgroundColor: 'transparent',
   },
 
   screen: {
     flex: 1,
-    backgroundColor: '#F5F6F8',
+    backgroundColor: 'transparent',
   },
 
   scroll: {
@@ -801,7 +804,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 35,
+    paddingBottom: 24,
   },
 
   /* HEADER */
@@ -813,7 +816,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    backgroundColor: '#F5F6F8',
+    backgroundColor: 'rgba(248, 250, 252, 0.68)',
     zIndex: 10,
     elevation: 10,
   },
@@ -861,7 +864,7 @@ const styles = StyleSheet.create({
     width: 105,
     height: 105,
     borderRadius: 53,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#DBEAFE',
     borderWidth: 2,
     borderColor: colors.primary,
     borderStyle: 'dashed',
@@ -909,6 +912,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
+
+  required: { color: colors.error },
+  optionalLabel: { color: colors.textSecondary, fontSize: 13, marginBottom: 7 },
+  speciesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  speciesButton: {
+    width: '48%', minHeight: 62, backgroundColor: '#FFFFFF', borderWidth: 1,
+    borderColor: colors.border, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 3,
+  },
+  speciesButtonActive: { backgroundColor: colors.backgroundSelected, borderColor: colors.primary },
+  speciesText: { color: '#374151', fontSize: 13, fontWeight: '600' },
+  speciesTextActive: { color: colors.primary },
+  otherSpeciesContainer: { marginTop: 12 },
+  ageHint: { color: colors.primary, fontSize: 13, fontWeight: '600', marginTop: 7 },
 
   input: {
     height: 50,
@@ -1011,7 +1027,7 @@ const styles = StyleSheet.create({
   },
 
   sexButtonActive: {
-    backgroundColor: '#EDE9FE',
+    backgroundColor: '#DBEAFE',
     borderColor: colors.primary,
   },
 
@@ -1096,5 +1112,83 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+
+  bottomNav: {
+    height: 68, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingBottom: 4,
+  },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  navText: { color: '#6B7280', fontSize: 11 },
+  navTextActive: { color: colors.primary, fontSize: 11, fontWeight: '700' },
+  calendarOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.48)', justifyContent: 'center', alignItems: 'center', padding: 18 },
+  calendarCard: { width: '100%', maxWidth: 420, borderRadius: 20, backgroundColor: '#FFFFFF', padding: 18, elevation: 12 },
+  calendarTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  calendarEyebrow: { color: colors.primary, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  calendarTitle: { color: '#1F2937', fontSize: 19, fontWeight: '700', marginTop: 3 },
+  calendarClose: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  calendarMonthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  calendarArrow: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  calendarMonth: { color: '#1F2937', fontSize: 16, fontWeight: '700' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarWeekday: { width: '14.2857%', height: 34, textAlign: 'center', textAlignVertical: 'center', color: '#6B7280', fontSize: 11, fontWeight: '700' },
+  calendarDay: { width: '14.2857%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
+  calendarDayOutside: { opacity: 0 },
+  calendarDaySelected: { backgroundColor: colors.primary },
+  calendarDayDisabled: { opacity: 0.35 },
+  calendarDayText: { color: '#1F2937', fontSize: 14, fontWeight: '500' },
+  calendarDayOutsideText: { color: '#9CA3AF' },
+  calendarDaySelectedText: { color: '#FFFFFF', fontWeight: '700' },
+  calendarDayDisabledText: { color: '#9CA3AF' },
+  calendarHint: { color: '#6B7280', fontSize: 12, marginTop: 10, textAlign: 'center' },
+  calendarTodayButton: { height: 44, backgroundColor: colors.primary, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  calendarTodayText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });
+
+function fechaHoyISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/El_Salvador' }).format(new Date());
+}
+
+function fechaDesdeISO(iso: string) {
+  const [year, month, day] = iso.slice(0, 10).split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function fechaDateToISO(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function obtenerDiasCalendario(month: Date) {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const mondayOffset = (first.getDay() + 6) % 7;
+  return Array.from({ length: 42 }, (_, index) => new Date(month.getFullYear(), month.getMonth(), 1 - mondayOffset + index));
+}
+
+function calcularEdadAnios(nacimiento: string, hoy: string) {
+  const birth = fechaDesdeISO(nacimiento);
+  const today = fechaDesdeISO(hoy);
+  let years = today.getFullYear() - birth.getFullYear();
+  if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) years -= 1;
+  return Math.max(0, years);
+}
+
+function etiquetaEdad(nacimiento: string, hoy: string) {
+  const birth = fechaDesdeISO(nacimiento);
+  const today = fechaDesdeISO(hoy);
+  const years = calcularEdadAnios(nacimiento, hoy);
+  if (years >= 1) return `${years} ${years === 1 ? 'año' : 'años'}`;
+  let months = (today.getFullYear() - birth.getFullYear()) * 12 + today.getMonth() - birth.getMonth();
+  if (today.getDate() < birth.getDate()) months -= 1;
+  months = Math.max(0, months);
+  return `${months} ${months === 1 ? 'mes' : 'meses'}`;
+}
+
+function formatearFecha(iso: string) {
+  return fechaDesdeISO(iso).toLocaleDateString('es-SV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function capitalizar(value: string) {
+  return value.charAt(0).toLocaleUpperCase('es-SV') + value.slice(1);
+}
 
