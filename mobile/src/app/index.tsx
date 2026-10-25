@@ -20,6 +20,7 @@ import { auth } from '@/config/firebase';
 import { API_URL } from '@/config/api';
 
 import { Colors } from '@/constants/theme';
+import { VetCareBackground } from '@/components/vetcare-background';
 
 const colors = Colors.light;
 
@@ -247,6 +248,7 @@ export default function LoginScreen() {
   };
 
   return (
+    <VetCareBackground>
     <SafeAreaView style={styles.safeArea}>
 
       <KeyboardAvoidingView
@@ -379,9 +381,7 @@ export default function LoginScreen() {
 
             <Pressable
               onPress={() =>
-                console.log(
-                  'Recuperar contraseña'
-                )
+                router.push('/forgot-password')
               }
               style={styles.forgotButton}
             >
@@ -438,11 +438,7 @@ export default function LoginScreen() {
               </Text>
 
               <Pressable
-                onPress={() =>
-                  console.log(
-                    'Ir a registro'
-                  )
-                }
+                onPress={() => router.push('/register')}
               >
 
                 <Text style={styles.registerLink}>
@@ -460,6 +456,7 @@ export default function LoginScreen() {
       </KeyboardAvoidingView>
 
     </SafeAreaView>
+    </VetCareBackground>
   );
 }
 
@@ -467,7 +464,7 @@ const styles = StyleSheet.create({
 
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
 
   container: {
@@ -495,7 +492,7 @@ const styles = StyleSheet.create({
     width: 104,
     height: 104,
     borderRadius: 52,
-    backgroundColor: '#EDE9FE',
+    backgroundColor: colors.backgroundSelected,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,

@@ -4,15 +4,17 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Colors } from '@/constants/theme';
+import { VetCareBackground } from '@/components/vetcare-background';
 import { auth } from '@/config/firebase';
 import { obtenerMascota } from '@/features/mascotas/services/mascotas.service';
 import {
@@ -21,9 +23,9 @@ import {
 } from '@/features/citas/services/citas.service';
 
 const colors = {
-  primary: '#6D28D9',
-  primaryLight: '#EDE9FE',
-  background: '#F5F6F8',
+  primary: Colors.light.primary,
+  primaryLight: Colors.light.backgroundSelected,
+  background: 'transparent',
   white: '#FFFFFF',
   text: '#1F2937',
   secondary: '#6B7280',
@@ -160,7 +162,8 @@ export default function DetalleCitaScreen() {
   }, [citaId]);
 
   useEffect(() => {
-    cargarDetalle();
+    const timer = setTimeout(() => { void cargarDetalle(); }, 0);
+    return () => clearTimeout(timer);
   }, [cargarDetalle]);
 
   const formatearFecha = (fecha: string) => {
@@ -286,19 +289,28 @@ export default function DetalleCitaScreen() {
 
   if (cargando) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centro}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.textoSecundario}>Cargando detalle...</Text>
-        </View>
-      </SafeAreaView>
+      <VetCareBackground>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.container}>
+            <DetalleHeader onBack={volverACitas} />
+            <View style={styles.centro}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.textoSecundario}>Cargando detalle...</Text>
+            </View>
+            <NavegacionInferior router={router} />
+          </View>
+        </SafeAreaView>
+      </VetCareBackground>
     );
   }
 
   if (error || !cita) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centro}>
+      <VetCareBackground>
+       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          <DetalleHeader onBack={volverACitas} />
+          <View style={[styles.centro, styles.errorContent]}>
           <View style={styles.iconoError}>
             <Ionicons
               name="alert-circle-outline"
@@ -324,18 +336,11 @@ export default function DetalleCitaScreen() {
             </Text>
           </Pressable>
 
-          <Pressable
-            style={styles.botonVolverGrande}
-            onPress={volverACitas}
-            hitSlop={15}
-          >
-            <Ionicons name="arrow-back" size={25} color={colors.white} />
-            <Text style={styles.textoBotonVolver}>
-              Volver a citas
-            </Text>
-          </Pressable>
+          </View>
+          <NavegacionInferior router={router} />
         </View>
-      </SafeAreaView>
+       </SafeAreaView>
+      </VetCareBackground>
     );
   }
 
@@ -345,30 +350,10 @@ export default function DetalleCitaScreen() {
     cita.estado?.toLowerCase() !== 'completada';
 
   return (
+    <VetCareBackground>
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Encabezado con botón grande y más abajo */}
-        <View style={styles.header}>
-          <Pressable
-            style={styles.botonVolverGrande}
-            onPress={volverACitas}
-            hitSlop={15}
-            accessibilityRole="button"
-            accessibilityLabel="Volver a citas"
-          >
-            <Ionicons
-              name="arrow-back"
-              size={30}
-              color={colors.white}
-            />
-          </Pressable>
-
-          <Text style={styles.tituloHeader}>
-            Detalle de cita
-          </Text>
-
-          <View style={styles.espaciador} />
-        </View>
+        <DetalleHeader onBack={volverACitas} />
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -488,8 +473,42 @@ export default function DetalleCitaScreen() {
             </Pressable>
           )}
         </ScrollView>
+        <NavegacionInferior router={router} />
       </View>
     </SafeAreaView>
+    </VetCareBackground>
+  );
+}
+
+function DetalleHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <View style={styles.header}>
+      <Pressable style={styles.botonVolver} onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Volver a citas">
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
+      </Pressable>
+      <Text style={styles.tituloHeader}>Detalle de cita</Text>
+      <View style={styles.espaciador} />
+    </View>
+  );
+}
+
+function NavegacionInferior({ router }: { router: ReturnType<typeof useRouter> }) {
+  return (
+    <View style={styles.bottomNav}>
+      <TabItem icon="home-outline" label="Inicio" onPress={() => router.replace('/home')} />
+      <TabItem icon="paw" label="Mascotas" onPress={() => router.replace('/mascotas')} />
+      <TabItem icon="calendar-outline" label="Citas" active onPress={() => router.replace('/citas')} />
+      <TabItem icon="bag-handle-outline" label="Tienda" onPress={() => router.push('/tienda')} />
+    </View>
+  );
+}
+
+function TabItem({ icon, label, active = false, onPress }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; active?: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={styles.tabItem} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <Ionicons name={icon} size={21} color={active ? colors.primary : '#9CA3AF'} />
+      <Text style={active ? styles.tabTextActive : styles.tabText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -524,51 +543,45 @@ function InfoCard({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   header: {
-    minHeight: 112,
+    minHeight: 62,
     paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: 'rgba(248, 250, 252, 0.78)',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(226, 232, 240, 0.8)',
   },
-  botonVolverGrande: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary,
+  botonVolver: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    elevation: 2,
   },
   tituloHeader: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '700',
     color: colors.text,
     marginHorizontal: 10,
   },
   espaciador: {
-    width: 64,
+    width: 42,
   },
   contenido: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 28,
   },
   tarjetaEstado: {
     borderRadius: 18,
@@ -675,6 +688,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
+  errorContent: {
+    paddingVertical: 24,
+  },
   iconoError: {
     width: 82,
     height: 82,
@@ -709,11 +725,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  textoBotonVolver: {
-    color: colors.white,
-    fontSize: 15,
+  bottomNav: {
+    height: 68,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingBottom: 4,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  tabText: {
+    color: '#6B7280',
+    fontSize: 11,
+  },
+  tabTextActive: {
+    color: colors.primary,
+    fontSize: 11,
     fontWeight: '700',
-    marginLeft: 8,
   },
 });
 

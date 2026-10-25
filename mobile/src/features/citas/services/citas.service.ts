@@ -4,8 +4,17 @@ import { apiFetch } from '@/lib/api-client';
 export const listarCitasDeMascota = (mascotaId: string, init?: RequestInit) =>
   apiFetch(`${API_URL}/api/citas/mascota/${encodeURIComponent(mascotaId)}`, init);
 
-export const listarHorariosDisponibles = (init?: RequestInit) =>
-  apiFetch(`${API_URL}/api/citas/disponibles`, init);
+export const listarHorariosDisponibles = (
+  params: { veterinario?: string; desde?: string; hasta?: string } = {},
+  init?: RequestInit,
+) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+  const suffix = query.size ? `?${query.toString()}` : '';
+  return apiFetch(`${API_URL}/api/citas/disponibles${suffix}`, init);
+};
 
 export const reservarCita = (init: RequestInit) =>
   apiFetch(`${API_URL}/api/citas/reservar`, init);
