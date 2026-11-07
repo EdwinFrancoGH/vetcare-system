@@ -1,4 +1,6 @@
 import db from "../config/firebase.js";
+import { crearClavePersistente, fechaExpiracionIdempotencia } from "../utils/idempotency.js";
+import { MAX_UNIDADES_POR_PRODUCTO } from "../validators/pedido.validator.js";
 
 export const DIAS_PARA_RETIRAR = 3;
 
@@ -11,15 +13,47 @@ const ordenarRecientes = (lista) =>
     lista.sort((a, b) => new Date(b.fechaPedido || 0) - new Date(a.fechaPedido || 0));
 
 // Crear un nuevo pedido apartando existencias de inventario
-export const crearPedido = async (datos) => {
-    const { clienteUid, clienteNombre, clienteEmail, productos, tipo } = datos;
+export const crearPedido = async (datos) => crearPedidoConDb(datos, db);
 
-    return await db.runTransaction(async (transaction) => {
+export const crearPedidoConDb = async (datos, database) => {
+    const { clienteUid, clienteNombre, clienteEmail, productos, tipo, idempotencyKey } = datos;
+    const clave = crearClavePersistente({
+        scope: "pedido",
+        actorUid: clienteUid,
+        key: idempotencyKey,
+        payload: { productos, tipo }
+    });
+
+    return await database.runTransaction(async (transaction) => {
+        const claveRef = database.collection("idempotencia").doc(clave.id);
+        const claveDoc = await transaction.get(claveRef);
+        if (claveDoc.exists) {
+            const guardado = claveDoc.data();
+            if (guardado.payloadHash !== clave.payloadHash) throw new Error("IDEMPOTENCY_KEY_REUSED");
+            const pedidoDoc = await transaction.get(database.collection("pedidos").doc(guardado.resourceId));
+            if (!pedidoDoc.exists) throw new Error("IDEMPOTENCY_RESULT_MISSING");
+            return { pedido: { id: pedidoDoc.id, ...pedidoDoc.data() }, repetido: true };
+        }
+        const pedidoExistente = await transaction.get(database.collection("pedidos").where("idempotencyId", "==", clave.id).limit(1));
+        if (!pedidoExistente.empty) {
+            const pedidoDoc = pedidoExistente.docs[0];
+            const guardado = pedidoDoc.data();
+            if (guardado.idempotencyPayloadHash !== clave.payloadHash) throw new Error("IDEMPOTENCY_KEY_REUSED");
+            return { pedido: { id: pedidoDoc.id, ...guardado }, repetido: true };
+        }
+
         const productosAgrupados = new Map();
         for (const item of productos) {
-            const id = item.productoId.trim();
+            const id = typeof item?.productoId === "string" ? item.productoId.trim() : "";
             const cantidad = Number(item.cantidad);
-            productosAgrupados.set(id, (productosAgrupados.get(id) || 0) + cantidad);
+            if (!id || !Number.isSafeInteger(cantidad) || cantidad <= 0) {
+                throw new Error("PRODUCTO_INVALIDO");
+            }
+            const cantidadAcumulada = (productosAgrupados.get(id) || 0) + cantidad;
+            if (!Number.isSafeInteger(cantidadAcumulada) || cantidadAcumulada > MAX_UNIDADES_POR_PRODUCTO) {
+                throw new Error("PRODUCTO_INVALIDO");
+            }
+            productosAgrupados.set(id, cantidadAcumulada);
         }
 
         const productosProcesados = [];
@@ -27,7 +61,7 @@ export const crearPedido = async (datos) => {
         let total = 0;
 
         for (const [productoId, cantidad] of productosAgrupados) {
-            const productoRef = db.collection("productos").doc(productoId);
+            const productoRef = database.collection("productos").doc(productoId);
             const productoDoc = await transaction.get(productoRef);
 
             if (!productoDoc.exists || productoDoc.data().activo === false) {
@@ -35,8 +69,12 @@ export const crearPedido = async (datos) => {
             }
 
             const producto = productoDoc.data();
-            const stockActual = Number(producto.stock || 0);
-            const precio = Number(producto.precio || 0);
+            const stockActual = Number(producto.stock);
+            const precio = Number(producto.precio);
+
+            if (!Number.isSafeInteger(stockActual) || stockActual < 0 || !Number.isFinite(precio) || precio < 0) {
+                throw new Error(`PRODUCTO_INVALIDO:${productoId}`);
+            }
 
             if (cantidad > stockActual) {
                 throw new Error(
@@ -45,6 +83,7 @@ export const crearPedido = async (datos) => {
             }
 
             const subtotal = Number((precio * cantidad).toFixed(2));
+            if (!Number.isFinite(subtotal)) throw new Error(`PRODUCTO_INVALIDO:${productoId}`);
             productosPedido.push({
                 productoId,
                 nombre: producto.nombre || "",
@@ -54,6 +93,7 @@ export const crearPedido = async (datos) => {
             });
             productosProcesados.push({ productoRef, stockActual, cantidad });
             total += subtotal;
+            if (!Number.isFinite(total)) throw new Error("TOTAL_INVALIDO");
         }
 
         for (const item of productosProcesados) {
@@ -66,7 +106,7 @@ export const crearPedido = async (datos) => {
         total = Number(total.toFixed(2));
         const esEnLinea = tipo === "en_linea";
         const ahora = new Date().toISOString();
-        const pedidoRef = db.collection("pedidos").doc();
+        const pedidoRef = database.collection("pedidos").doc();
 
         const limiteRetiro = tipo === "retiro"
             ? new Date(Date.now() + DIAS_PARA_RETIRAR * 24 * 60 * 60 * 1000).toISOString()
@@ -80,6 +120,9 @@ export const crearPedido = async (datos) => {
             total,
             tipo,
             estado: "pendiente",
+            idempotencyId: clave.id,
+            idempotencyPayloadHash: clave.payloadHash,
+            historialEstados: [{ estado: "pendiente", fecha: ahora, actorUid: clienteUid, actorRol: "Cliente" }],
             pagado: false,
             metodoPago: esEnLinea ? "En línea (simulado; por cobrar al retirar)" : "Pendiente",
             fechaPedido: ahora,
@@ -88,7 +131,14 @@ export const crearPedido = async (datos) => {
         };
 
         transaction.set(pedidoRef, pedido);
-        return { id: pedidoRef.id, ...pedido };
+        transaction.create(claveRef, {
+            payloadHash: clave.payloadHash,
+            resourceId: pedidoRef.id,
+            resourceType: "pedido",
+            createdAt: new Date(ahora),
+            expiresAt: fechaExpiracionIdempotencia(new Date(ahora))
+        });
+        return { pedido: { id: pedidoRef.id, ...pedido }, repetido: false };
     });
 };
 
@@ -130,7 +180,7 @@ export const vencerPedidosAntiguos = async () => {
         if (Number.isNaN(limiteMs) || limiteMs >= ahoraMs) continue;
 
         try {
-            await cambiarEstado(doc.id, "cancelado", null, "Vencido: no se retiró a tiempo");
+            await cambiarEstado(doc.id, "cancelado", null, "Vencido: no se retiró a tiempo", { actorRol: "Sistema" });
         } catch (error) {
             console.error(`Error al vencer pedido ${doc.id}:`, error.message);
         }
@@ -138,9 +188,9 @@ export const vencerPedidosAntiguos = async () => {
 };
 
 // Cambiar estado del pedido controlando transiciones, inventario y registro de venta
-export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCancelacion) => {
-    return await db.runTransaction(async (transaction) => {
-        const pedidoRef = db.collection("pedidos").doc(id);
+export const cambiarEstadoConDb = async (id, nuevoEstado, metodoPagoEntrega, motivoCancelacion, database, actor = {}) => {
+    return await database.runTransaction(async (transaction) => {
+        const pedidoRef = database.collection("pedidos").doc(id);
         const pedidoDoc = await transaction.get(pedidoRef);
 
         if (!pedidoDoc.exists) throw new Error("PEDIDO_NO_ENCONTRADO");
@@ -154,19 +204,36 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCa
         const productosRestaurar = [];
         if (nuevoEstado === "cancelado") {
             for (const item of (pedido.productos || [])) {
-                const prodRef = db.collection("productos").doc(item.productoId);
+                const prodRef = database.collection("productos").doc(item.productoId);
                 const prodDoc = await transaction.get(prodRef);
                 if (prodDoc.exists) {
+                    const stockActual = Number(prodDoc.data().stock);
+                    const cantidad = Number(item.cantidad);
+                    if (!Number.isSafeInteger(stockActual) || stockActual < 0
+                        || !Number.isSafeInteger(cantidad) || cantidad <= 0
+                        || !Number.isSafeInteger(stockActual + cantidad)) {
+                        throw new Error("STOCK_INVALIDO");
+                    }
                     productosRestaurar.push({
                         ref: prodRef,
-                        stockActual: Number(prodDoc.data().stock || 0),
-                        cantidad: Number(item.cantidad || 0)
+                        stockActual,
+                        cantidad
                     });
                 }
             }
         }
 
         const ahora = new Date().toISOString();
+        const historialAnterior = Array.isArray(pedido.historialEstados)
+            ? pedido.historialEstados
+            : [{ estado: pedido.estado, fecha: pedido.fechaActualizacion || pedido.fechaPedido || null, actorRol: "Migracion" }];
+        const historialEstados = [...historialAnterior, {
+            estado: nuevoEstado,
+            fecha: ahora,
+            actorUid: actor.uid || null,
+            actorRol: actor.role || actor.actorRol || "Sistema",
+            ...(motivoCancelacion ? { motivo: motivoCancelacion } : {}),
+        }];
 
         if (nuevoEstado === "cancelado") {
             for (const item of productosRestaurar) {
@@ -178,6 +245,7 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCa
             const actualizacion = {
                 estado: "cancelado",
                 fechaActualizacion: ahora,
+                historialEstados,
                 ...(motivoCancelacion ? { motivoCancelacion } : {})
             };
             transaction.update(pedidoRef, actualizacion);
@@ -189,7 +257,7 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCa
                 ? pedido.metodoPago
                 : (metodoPagoEntrega || "Efectivo");
 
-            const ventaRef = db.collection("ventas").doc();
+            const ventaRef = database.collection("ventas").doc();
             const venta = {
                 cliente: pedido.clienteNombre || "Cliente",
                 correoCliente: pedido.clienteEmail || "",
@@ -208,7 +276,8 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCa
                 pagado: true,
                 metodoPago: metodoFinal,
                 ventaId: ventaRef.id,
-                fechaActualizacion: ahora
+                fechaActualizacion: ahora,
+                historialEstados
             };
 
             transaction.update(pedidoRef, actualizacion);
@@ -220,12 +289,16 @@ export const cambiarEstado = async (id, nuevoEstado, metodoPagoEntrega, motivoCa
 
         const actualizacion = {
             estado: "listo",
-            fechaActualizacion: ahora
+            fechaActualizacion: ahora,
+            historialEstados
         };
         transaction.update(pedidoRef, actualizacion);
         return { pedido: { id, ...pedido, ...actualizacion } };
     });
 };
+
+export const cambiarEstado = (id, nuevoEstado, metodoPagoEntrega, motivoCancelacion, actor) =>
+    cambiarEstadoConDb(id, nuevoEstado, metodoPagoEntrega, motivoCancelacion, db, actor);
 
 // Extender el plazo de retiro de un pedido pendiente o listo sin pagar
 export const extenderPlazo = async (id) => {

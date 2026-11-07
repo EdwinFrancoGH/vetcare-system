@@ -6,5 +6,7 @@ export const obtenerVentas = () =>
 export const obtenerVenta = (id) =>
     api.get(`/ventas/${id}`);
 
-export const registrarVenta = (datos) =>
-    api.post("/ventas", datos);
+export const registrarVenta = (datos, idempotencyKey) =>
+    api.post("/ventas", datos, {
+        headers: { "Idempotency-Key": idempotencyKey }
+    });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,14 +9,37 @@ import { API_URL } from '@/config/api';
 import { auth } from '@/config/firebase';
 import { listarMascotas } from '@/features/mascotas/services/mascotas.service';
 import { listarCitasDeMascota, listarHorariosDisponibles, reservarCita } from '@/features/citas/services/citas.service';
+import { listarServiciosVeterinarios } from '@/features/citas/services/servicios-veterinarios.service';
+import { AccesoClienteCitas } from '@/features/citas/components/acceso-cliente-citas';
+import {
+  crearEjecutorReservaUnica,
+  crearErrorReservaCita,
+  crearPayloadReservaCita,
+  formatearPrecioVeterinario,
+  formatearTarifaCita,
+  servicioSeleccionadoActivo,
+  type ServicioVeterinario,
+} from '@/features/citas/utils/servicios-veterinarios';
 
 const blue = Colors.light.primary;
 const motivos = ['Consulta general', 'Vacunación', 'Control', 'Desparasitación', 'Malestar / enfermedad'];
 type Mascota = { id: string; nombre: string; especie?: string; propietario?: string; telefono?: string };
 type Horario = { veterinario: string; fecha: string; hora: string; duracionMinutos?: number };
-type Cita = Horario & { mascotaId: string; estado?: string; nombreMascota?: string };
+type Cita = Horario & {
+  mascotaId: string;
+  estado?: string;
+  nombreMascota?: string;
+  servicioId?: string;
+  servicioNombre?: string;
+  precioCentavos?: number;
+  moneda?: string;
+};
 
 export default function AgendarCita() {
+  return <AccesoClienteCitas><AgendarCitaCliente /></AccesoClienteCitas>;
+}
+
+function AgendarCitaCliente() {
   const router = useRouter();
   const [mascotas, setMascotas] = useState<Mascota[]>([]);
   const [veterinarios, setVeterinarios] = useState<string[]>([]);
@@ -32,10 +55,15 @@ export default function AgendarCita() {
   const [propietario, setPropietario] = useState('');
   const [telefono, setTelefono] = useState('');
   const [motivo, setMotivo] = useState('');
+  const [servicios, setServicios] = useState<ServicioVeterinario[]>([]);
+  const [servicioId, setServicioId] = useState('');
+  const [cargandoServicios, setCargandoServicios] = useState(true);
+  const [errorServicios, setErrorServicios] = useState('');
   const [cargando, setCargando] = useState(true);
   const [cargandoSlots, setCargandoSlots] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const ejecutarReservaUnica = useRef(crearEjecutorReservaUnica()).current;
   const hoy = fechaHoyISO();
   const finSemana = sumarDiasISO(inicioSemana, 6);
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => sumarDiasISO(inicioSemana, i)), [inicioSemana]);
@@ -85,10 +113,29 @@ export default function AgendarCita() {
     finally { setCargando(false); }
   }, [hoy]);
 
+  const cargarServicios = useCallback(async () => {
+    setCargandoServicios(true);
+    setErrorServicios('');
+    try {
+      const lista = await listarServiciosVeterinarios();
+      setServicios(lista);
+    } catch (e: any) {
+      setServicios([]);
+      setErrorServicios(e?.message || 'No se pudo cargar el catálogo de servicios.');
+    } finally {
+      setCargandoServicios(false);
+    }
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => { void cargarDatos(); }, 0);
     return () => clearTimeout(timer);
   }, [cargarDatos]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { void cargarServicios(); }, 0);
+    return () => clearTimeout(timer);
+  }, [cargarServicios]);
 
   useEffect(() => {
     if (!veterinario) return;
@@ -114,6 +161,7 @@ export default function AgendarCita() {
 
   const abrirReserva = (slot: Horario) => {
     setSeleccionada(slot);
+    setServicioId('');
     const unica = mascotas.length === 1 ? mascotas[0] : null;
     setMascotaId(unica?.id || ''); setPropietario(unica?.propietario || nombreUsuario);
     setTelefono(unica?.telefono || telefonoUsuario); setMotivo('');
@@ -127,24 +175,59 @@ export default function AgendarCita() {
     if (!seleccionada || !mascotaId || !propietario.trim() || !telefono.trim() || !motivo.trim()) {
       Alert.alert('Campos incompletos', 'Selecciona una mascota e ingresa los datos de contacto y el motivo.'); return;
     }
+    const servicioSeleccionado = servicios.find((servicio) => servicio.id === servicioId);
+    if (!servicioSeleccionadoActivo(servicioId, servicios) || !servicioSeleccionado) {
+      Alert.alert('Servicio requerido', 'Selecciona un servicio veterinario activo para continuar.'); return;
+    }
     if (!/^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/.test(telefono.trim())) {
-      Alert.alert('Teléfono inválido', 'Ingresa un número salvadoreño de 8 dígitos, por ejemplo 7123-4567.'); return;
+      Alert.alert('Telefono invalido', 'Ingresa un numero salvadoreno de 8 digitos, por ejemplo 7123-4567.'); return;
     }
     const user = auth.currentUser;
-    if (!user) { Alert.alert('Sesión requerida', 'Tu sesión ha expirado.'); return; }
+    if (!user) { Alert.alert('Sesion requerida', 'Tu sesion ha expirado.'); return; }
     try {
-      setGuardando(true);
-      const token = await user.getIdToken();
-      const response = await reservarCita({ method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ veterinario: seleccionada.veterinario, fecha: seleccionada.fecha, hora: seleccionada.hora, mascotaId, propietario: propietario.trim(), telefono: telefono.trim(), motivo: motivo.trim() }) });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json.message || 'El horario ya no está disponible.');
-      const reservada = seleccionada; const nombrePet = mascotas.find((pet) => pet.id === mascotaId)?.nombre || 'tu mascota';
+      const resultado = await ejecutarReservaUnica(async () => {
+        setGuardando(true);
+        const token = await user.getIdToken();
+        const response = await reservarCita({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(crearPayloadReservaCita({
+            veterinario: seleccionada.veterinario,
+            fecha: seleccionada.fecha,
+            hora: seleccionada.hora,
+            mascotaId,
+            propietario: propietario.trim(),
+            telefono: telefono.trim(),
+            motivo: motivo.trim(),
+            servicioId: servicioSeleccionado.id,
+          })),
+        });
+        const json = await response.json();
+        if (!response.ok) {
+          throw crearErrorReservaCita(json.message || 'No se pudo reservar la cita.', response.status, json.code);
+        }
+        return json;
+      });
+      if (!resultado.ejecutada) return;
+      const citaBackend = resultado.valor?.data || {};
+      const reservada = seleccionada;
+      const nombrePet = mascotas.find((pet) => pet.id === mascotaId)?.nombre || 'tu mascota';
+      const nombreServicio = citaBackend.servicioNombre || servicioSeleccionado.nombre;
+      const tarifaConfirmada = formatearTarifaCita(citaBackend) || 'Tarifa confirmada no disponible';
       setSeleccionada(null);
+      setServicioId('');
       setDisponibles((actual) => actual.filter((slot) => !(slot.fecha === reservada.fecha && slot.hora === reservada.hora && slot.veterinario === reservada.veterinario)));
-      Alert.alert('¡Cita reservada!', `La cita de ${nombrePet} quedó reservada para el ${formatearFecha(reservada.fecha)} a las ${reservada.hora}.`, [{ text: 'Aceptar', onPress: () => router.replace('/citas') }]);
+      Alert.alert('Cita reservada', `La cita de ${nombrePet} para ${nombreServicio} (${tarifaConfirmada}) quedo reservada para el ${formatearFecha(reservada.fecha)} a las ${reservada.hora}.`, [{ text: 'Aceptar', onPress: () => router.replace('/citas') }]);
       void cargarDatos();
-    } catch (e: any) { Alert.alert('No se pudo reservar', e?.message || 'Inténtalo de nuevo.'); }
-    finally { setGuardando(false); }
+    } catch (e: any) {
+      if (e?.code === 'SERVICIO_NO_DISPONIBLE') {
+        Alert.alert('Servicio no disponible', e?.message || 'El servicio cambio o fue desactivado. Actualiza el catalogo y selecciona otro.');
+        setServicioId('');
+        void cargarServicios();
+      } else {
+        Alert.alert('No se pudo reservar', e?.message || 'Intentalo de nuevo.');
+      }
+    } finally { setGuardando(false); }
   };
 
   if (cargando) return <VetCareBackground><SafeAreaView style={styles.safe}><View style={styles.loading}><ActivityIndicator size="large" color={blue} /><Text style={styles.muted}>Cargando citas...</Text></View></SafeAreaView></VetCareBackground>;
@@ -186,6 +269,8 @@ export default function AgendarCita() {
           <View style={styles.modalHeader}><View><Text style={styles.modalTitle}>Reservar horario</Text><Text style={styles.muted}>Completa los datos para confirmar tu cita.</Text></View><Pressable onPress={() => setSeleccionada(null)} disabled={guardando} style={styles.close}><Ionicons name="close" size={21} color="#64748B" /></Pressable></View>
           {seleccionada ? <View style={styles.appointmentInfo}><Ionicons name="calendar-outline" size={16} color={blue} /><Text style={styles.infoText}>{formatearFechaLarga(seleccionada.fecha)}</Text><Ionicons name="time-outline" size={16} color={blue} /><Text style={styles.infoText}>{seleccionada.hora}</Text><Ionicons name="medkit-outline" size={16} color={blue} /><Text style={styles.infoText}>Dr(a). {seleccionada.veterinario}</Text></View> : null}
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.label}>Servicio veterinario <Text style={styles.required}>*</Text></Text>
+            {cargandoServicios ? <View style={styles.catalogState}><ActivityIndicator color={blue} /><Text style={styles.muted}>Cargando servicios...</Text></View> : errorServicios ? <View style={styles.catalogError}><Text style={styles.errorText}>{errorServicios}</Text><Pressable onPress={() => { void cargarServicios(); }} accessibilityRole="button"><Text style={styles.retry}>Reintentar</Text></Pressable></View> : servicios.length === 0 ? <View style={styles.catalogState}><Text style={styles.muted}>No hay servicios activos disponibles.</Text></View> : <View style={styles.serviceList}>{servicios.map((servicio) => { const active = servicio.id === servicioId; return <Pressable key={servicio.id} onPress={() => setServicioId(servicio.id)} accessibilityRole="radio" accessibilityState={{ selected: active }} style={[styles.serviceOption, active && styles.serviceOptionActive]}><View style={{ flex: 1 }}><Text style={styles.serviceName}>{servicio.nombre}</Text>{servicio.descripcion ? <Text style={styles.serviceDescription}>{servicio.descripcion}</Text> : null}<Text style={styles.servicePrice}>{formatearPrecioVeterinario(servicio.precioCentavos)}</Text></View><Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={21} color={active ? blue : '#94A3B8'} /></Pressable>; })}</View>}
             <Text style={styles.label}>Mascota <Text style={styles.required}>*</Text></Text>
             {!mascotas.length ? <View style={styles.noPets}><Text style={styles.muted}>Primero registra una mascota.</Text><Pressable onPress={() => { setSeleccionada(null); router.push('/agregar-mascota'); }}><Text style={styles.addPet}>Agregar mascota</Text></Pressable></View> : <View style={styles.petGrid}>{mascotas.map((pet) => { const active = pet.id === mascotaId; return <Pressable key={pet.id} onPress={() => elegirMascota(pet.id)} style={[styles.pet, active && styles.petActive]}><View style={[styles.petIcon, active && styles.petIconActive]}><Ionicons name="paw" size={17} color={active ? blue : '#7C3AED'} /></View><View style={{ flex: 1 }}><Text style={styles.petName} numberOfLines={1}>{pet.nombre}</Text><Text style={styles.mutedSmall}>{pet.especie || 'Mascota'}</Text></View></Pressable>; })}</View>}
             <Text style={styles.label}>Propietario <Text style={styles.required}>*</Text></Text><TextInput style={styles.input} value={propietario} onChangeText={setPropietario} placeholder="Nombre del propietario" placeholderTextColor="#94A3B8" />
@@ -194,7 +279,7 @@ export default function AgendarCita() {
             <View style={styles.chips}>{motivos.map((item) => { const active = motivo === item; return <Pressable key={item} onPress={() => setMotivo(item)} style={[styles.chip, active && styles.chipActive]}><Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text></Pressable>; })}</View>
             <TextInput style={[styles.input, styles.textArea]} value={motivo} onChangeText={setMotivo} placeholder="Describe el motivo de la consulta..." placeholderTextColor="#94A3B8" multiline textAlignVertical="top" maxLength={200} />
           </ScrollView>
-          <View style={styles.actions}><Pressable style={styles.cancel} onPress={() => setSeleccionada(null)} disabled={guardando}><Text style={styles.cancelText}>Cancelar</Text></Pressable><Pressable style={[styles.confirm, (guardando || !mascotas.length) && styles.disabled]} onPress={reservar} disabled={guardando || !mascotas.length}>{guardando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmText}>Confirmar reserva</Text>}</Pressable></View>
+          <View style={styles.actions}><Pressable style={styles.cancel} onPress={() => setSeleccionada(null)} disabled={guardando}><Text style={styles.cancelText}>Cancelar</Text></Pressable><Pressable style={[styles.confirm, (guardando || !mascotas.length || !servicioId || cargandoServicios || Boolean(errorServicios)) && styles.disabled]} onPress={reservar} disabled={guardando || !mascotas.length || !servicioId || cargandoServicios || Boolean(errorServicios)}>{guardando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmText}>Confirmar reserva</Text>}</Pressable></View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -223,5 +308,6 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#FFF', borderColor: '#E5E7EB', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 14, elevation: 2 }, doctorRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }, doctorAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: blue, alignItems: 'center', justifyContent: 'center' }, doctorAvatarText: { color: '#FFF', fontSize: 19, fontWeight: '800' }, eyebrow: { color: '#6B7280', fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }, doctorName: { color: '#111827', fontSize: 17, fontWeight: '700', marginTop: 3 }, doctorOptions: { gap: 8, paddingTop: 13 }, doctorOption: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#F9FAFB', borderColor: '#E5E7EB', borderWidth: 1, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7 }, doctorActive: { backgroundColor: blue, borderColor: blue }, docInitial: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' }, docInitialActive: { backgroundColor: '#FFF' }, docInitialText: { color: '#1E40AF', fontSize: 11, fontWeight: '700' }, docInitialTextActive: { color: blue }, doctorOptionText: { color: '#374151', fontSize: 12, fontWeight: '600' }, doctorOptionTextActive: { color: '#FFF' },
   weekRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }, arrow: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' }, faded: { opacity: 0.4 }, weekTitleBox: { flex: 1, alignItems: 'center' }, weekTitle: { color: '#374151', fontSize: 12, fontWeight: '700', textAlign: 'center' }, today: { color: blue, fontSize: 11, fontWeight: '700', marginTop: 4 }, days: { gap: 8, paddingTop: 12 }, day: { width: 88, minHeight: 65, backgroundColor: '#FFF', borderColor: '#E5E7EB', borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, dayActive: { backgroundColor: blue, borderColor: blue }, dayDisabled: { backgroundColor: '#F3F4F6', opacity: 0.62 }, dayName: { color: '#374151', fontSize: 12, fontWeight: '800' }, dayNameActive: { color: '#FFF' }, dayCount: { color: blue, fontSize: 10, fontWeight: '700', marginTop: 5 }, dayCountActive: { color: '#DBEAFE' }, disabledText: { color: '#9CA3AF' },
   slotsTitle: { color: '#111827', fontSize: 17, fontWeight: '800', marginBottom: 17, textTransform: 'capitalize' }, loadingSlots: { minHeight: 90, alignItems: 'center', justifyContent: 'center', gap: 8 }, period: { color: '#6B7280', fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }, slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 }, slot: { minWidth: '30%', flexGrow: 1, height: 45, paddingHorizontal: 10, backgroundColor: '#FFF', borderWidth: 1, borderColor: blue, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }, slotText: { color: blue, fontSize: 14, fontWeight: '700' }, emptySlots: { alignItems: 'center', paddingVertical: 16 }, emptyIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }, emptyTitle: { color: '#374151', fontSize: 14, fontWeight: '700', textAlign: 'center', marginVertical: 4 }, emptyCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 24, alignItems: 'center', gap: 8 }, nav: { height: 68, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', paddingBottom: 4 }, navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }, navLabel: { color: '#6B7280', fontSize: 11 }, navActive: { color: blue, fontSize: 11, fontWeight: '700' },
+  catalogState: { minHeight: 66, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB' }, catalogError: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' }, retry: { color: blue, fontSize: 13, fontWeight: '700' }, serviceList: { gap: 8 }, serviceOption: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFF' }, serviceOptionActive: { backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }, serviceName: { color: '#1F2937', fontSize: 14, fontWeight: '700' }, serviceDescription: { color: '#6B7280', fontSize: 12, marginTop: 3 }, servicePrice: { color: blue, fontSize: 13, fontWeight: '800', marginTop: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', padding: 12 }, modal: { width: '100%', maxWidth: 520, maxHeight: '94%', backgroundColor: '#FFF', borderRadius: 20, overflow: 'hidden', elevation: 16 }, modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 17, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }, modalTitle: { color: '#111827', fontSize: 20, fontWeight: '800' }, close: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }, appointmentInfo: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7, marginHorizontal: 15, marginTop: 12, padding: 10, borderRadius: 12, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE' }, infoText: { color: '#1E40AF', fontSize: 11, fontWeight: '600' }, modalScroll: { flexShrink: 1 }, form: { paddingHorizontal: 17, paddingTop: 5, paddingBottom: 15 }, label: { color: '#374151', fontSize: 14, fontWeight: '600', marginTop: 13, marginBottom: 7 }, required: { color: '#DC2626' }, petGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, pet: { width: '48%', minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, borderRadius: 12, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E5E7EB' }, petActive: { backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }, petIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3E8FF', alignItems: 'center', justifyContent: 'center' }, petIconActive: { backgroundColor: '#DBEAFE' }, petName: { color: '#111827', fontSize: 12, fontWeight: '700' }, noPets: { padding: 12, backgroundColor: '#F9FAFB', borderRadius: 12, alignItems: 'center' }, addPet: { color: blue, fontSize: 13, fontWeight: '700', marginTop: 8 }, input: { minHeight: 46, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, color: '#1F2937', fontSize: 14, backgroundColor: '#FFF' }, phone: { minHeight: 46, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 12 }, prefix: { color: '#64748B', fontSize: 13, fontWeight: '700', marginRight: 10 }, phoneInput: { flex: 1, color: '#1F2937', fontSize: 14, paddingVertical: 10 }, reasonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, counter: { color: '#94A3B8', fontSize: 11, fontWeight: '700', marginTop: 13 }, chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, chip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }, chipActive: { backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }, chipText: { color: '#475569', fontSize: 11 }, chipTextActive: { color: '#1E40AF', fontWeight: '700' }, textArea: { minHeight: 90, marginTop: 9 }, actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, paddingHorizontal: 15, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: '#F9FAFB' }, cancel: { minHeight: 44, paddingHorizontal: 15, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center' }, cancelText: { color: '#374151', fontSize: 13, fontWeight: '600' }, confirm: { minHeight: 44, minWidth: 165, paddingHorizontal: 15, borderRadius: 10, backgroundColor: blue, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.55 }, confirmText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
 });

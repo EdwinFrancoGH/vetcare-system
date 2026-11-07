@@ -16,6 +16,8 @@ import { VetCareBackground } from '@/components/vetcare-background';
 import { auth } from '@/config/firebase';
 import { listarMascotas } from '@/features/mascotas/services/mascotas.service';
 import { listarCitasDeMascota } from '@/features/citas/services/citas.service';
+import { AccesoClienteCitas } from '@/features/citas/components/acceso-cliente-citas';
+import { clasificarCitaMobile } from '@/features/citas/utils/citas-cliente';
 
 const colors = {
   primary: Colors.light.primary,
@@ -52,11 +54,16 @@ type Cita = {
 };
 
 export default function CitasScreen() {
+  return <AccesoClienteCitas><CitasClienteScreen /></AccesoClienteCitas>;
+}
+
+function CitasClienteScreen() {
   const router = useRouter();
   const [citas, setCitas] = useState<Cita[]>([]);
   const [mascotas, setMascotas] = useState<Mascota[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const hoy = fechaHoySV();
 
   const cargarCitas = useCallback(async () => {
     try {
@@ -207,6 +214,12 @@ export default function CitasScreen() {
           color: colors.red,
           background: colors.redLight,
         };
+      case 'perdida':
+        return {
+          texto: 'Perdida',
+          color: colors.orange,
+          background: colors.orangeLight,
+        };
       default:
         return {
           texto: estado || 'Sin estado',
@@ -238,18 +251,17 @@ export default function CitasScreen() {
 
   const citasActivas = citas.filter(
     (cita) =>
-      cita.estado?.toLowerCase() !== 'cancelada' &&
-      cita.estado?.toLowerCase() !== 'completada'
+      clasificarCitaMobile(cita, hoy).activa
   );
 
   const citasAnteriores = citas.filter(
     (cita) =>
-      cita.estado?.toLowerCase() === 'cancelada' ||
-      cita.estado?.toLowerCase() === 'completada'
+      clasificarCitaMobile(cita, hoy).historial
   );
 
   const renderCita = (cita: Cita) => {
-    const estado = obtenerEstado(cita.estado);
+    const estadoVisible = clasificarCitaMobile(cita, hoy).estadoVisible;
+    const estado = obtenerEstado(estadoVisible);
 
     return (
       <Pressable
@@ -801,5 +813,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+function fechaHoySV() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/El_Salvador' }).format(new Date());
+}
 
 

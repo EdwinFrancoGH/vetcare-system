@@ -34,9 +34,18 @@ export const crearCita = (datos) => api.post("/citas", datos);
 // backend valida contra el horario semanal antes de crear la cita.
 export const reservarCita = (datos) => api.post("/citas/reservar", datos);
 
+// Reprogramar una cita activa desde la agenda del personal.
+export const reprogramarCita = (id, datos) =>
+    api.patch(`/citas/${encodeURIComponent(id)}/reprogramar`, datos);
+
 export const actualizarCita = (id, datos) =>
     api.put(`/citas/${id}`, datos);
 
 export const cancelarCita = (id) => api.put(`/citas/${id}/cancelar`);
 
 export const eliminarCita = (id) => api.delete(`/citas/${id}`);
+
+export const obtenerPagoCita = (id) => api.get(`/citas/${encodeURIComponent(id)}/pago`);
+
+export const reportarPagoCita = (id, datos) =>
+    api.post(`/citas/${encodeURIComponent(id)}/pago/reportar`, datos);

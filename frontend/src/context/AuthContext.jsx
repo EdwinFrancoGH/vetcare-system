@@ -8,8 +8,8 @@ import {
     signOut,
     sendPasswordResetEmail,
 } from "firebase/auth";
-import { auth, db } from "../lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { auth } from "../lib/firebase";
+import api from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -24,11 +24,13 @@ export function AuthProvider({ children }) {
             setUser(currentUser);
             if (currentUser) {
                 try {
-                    const docRef = doc(db, "usuarios", currentUser.uid);
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
-                        setUserRole(docSnap.data().role);
-                        setUserData(docSnap.data());
+                    await api.post("/auth/sync", {
+                        name: currentUser.displayName || currentUser.email?.split("@")[0] || ""
+                    });
+                    const response = await api.get("/users/profile");
+                    if (response.data?.user) {
+                        setUserRole(response.data.user.role);
+                        setUserData(response.data.user);
                     } else {
                         setUserRole(null);
                         setUserData(null);
@@ -72,11 +74,10 @@ export function AuthProvider({ children }) {
     const refreshUserData = async () => {
         if (!auth.currentUser) return;
         try {
-            const docRef = doc(db, "usuarios", auth.currentUser.uid);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                setUserRole(docSnap.data().role);
-                setUserData(docSnap.data());
+            const response = await api.get("/users/profile");
+            if (response.data?.user) {
+                setUserRole(response.data.user.role);
+                setUserData(response.data.user);
             }
         } catch (error) {
             console.error("Error refrescando datos de usuario:", error);

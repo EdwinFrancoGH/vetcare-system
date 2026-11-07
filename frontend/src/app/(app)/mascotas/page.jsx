@@ -168,8 +168,8 @@ function MascotasPage() {
             {/* Modal de confirmación para eliminar */}
             <ConfirmModal
                 open={showModal}
-                title="Eliminar mascota"
-                message="¿Está seguro de eliminar esta mascota? Esta acción no se puede deshacer."
+                title="Archivar mascota"
+                message="¿Desea archivar esta mascota? Se ocultará de la lista, pero sus citas, vacunas e historial clínico se conservarán."
                 onCancel={() => {
                     setShowModal(false);
                     setMascotaSeleccionada(null);
