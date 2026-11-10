@@ -5,15 +5,28 @@ export const syncUser = async (req, res) => {
         // En este punto, req.user viene del middleware verifyToken
         const { uid, email } = req.user;
         const { name } = req.body; // El frontend puede enviar datos extras en el body
+        const emailVerified = req.user.email_verified === true;
 
         // Referencia al documento del usuario en la colección 'usuarios'
         const userRef = db.collection('usuarios').doc(uid);
         const userDoc = await userRef.get();
 
         if (userDoc.exists) {
+            // Actualizamos emailVerified en Firestore si cambió tras la verificación
+            const updates = {
+                emailVerified,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (name && !userDoc.data().name) {
+                updates.name = name;
+            }
+
+            await userRef.update(updates);
+
             return res.status(200).json({ 
                 message: 'El usuario ya existe en Firestore',
-                user: userDoc.data()
+                user: { ...userDoc.data(), ...updates }
             });
         }
 
@@ -28,6 +41,7 @@ export const syncUser = async (req, res) => {
             email,
             name: name || '',
             role: 'Cliente', // Rol por defecto
+            emailVerified,
             createdAt: new Date().toISOString(),
             status: 'Active'
         };

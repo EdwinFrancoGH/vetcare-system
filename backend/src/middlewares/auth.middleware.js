@@ -119,3 +119,47 @@ export const cargarRol = async (req, res, next) => {
         });
     }
 };
+
+// Middleware para exigir que el correo electrónico del usuario esté verificado
+// en Firebase Authentication (req.user.email_verified === true).
+//
+// Reglas de negocio:
+// 1. Usuarios con inicio de sesión por Google ya vienen verificados por Google.
+// 2. Usuarios con registro tradicional de correo deben haber hecho clic en el
+//    enlace de verificación enviado a su bandeja antes de poder ejecutar
+//    acciones críticas (crear citas, registrar mascotas, realizar pedidos).
+// 3. El personal clínico (Administrador, Recepcionista, Veterinario) no se bloquea
+//    por verificación de correo de cliente si ya tiene rol interno asignado.
+export const requireEmailVerified = (req, res, next) => {
+    try {
+        if (!req.user || !req.user.uid) {
+            return res.status(401).json({
+                error: 'No autorizado',
+                message: 'Usuario no autenticado'
+            });
+        }
+
+        // Si Firebase Auth confirma que el correo ya fue verificado
+        if (req.user.email_verified === true) {
+            return next();
+        }
+
+        // Si es personal administrativo o clínico preexistente, se permite el acceso
+        if (req.userRole && req.userRole !== 'Cliente') {
+            return next();
+        }
+
+        return res.status(403).json({
+            error: 'EmailNoVerificado',
+            code: 'auth/email-not-verified',
+            message: 'Debes verificar tu correo electrónico antes de realizar esta acción en el sistema.'
+        });
+    } catch (error) {
+        console.error('Error verificando confirmación de correo:', error);
+        return res.status(500).json({
+            error: 'Error del servidor',
+            message: 'No se pudo comprobar la verificación del correo'
+        });
+    }
+};
+
