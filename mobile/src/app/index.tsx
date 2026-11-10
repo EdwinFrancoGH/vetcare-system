@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 
 import {
@@ -15,7 +15,7 @@ import {
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 import { auth } from '@/config/firebase';
 import { API_URL } from '@/config/api';
 
@@ -31,9 +31,47 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendienteVerificacion, setPendienteVerificacion] = useState(false);
+  const [reenviando, setReenviando] = useState(false);
+  const [mensajeInfo, setMensajeInfo] = useState('');
+
+  // Ocultar automáticamente la notificación de éxito después de 4.5 segundos
+  useEffect(() => {
+    if (!mensajeInfo) return;
+    const timer = setTimeout(() => {
+      setMensajeInfo('');
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [mensajeInfo]);
+
+  const handleReenviarCorreo = async () => {
+    setError('');
+    setMensajeInfo('');
+    setReenviando(true);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setError('Por favor vuelve a ingresar tu correo y contraseña.');
+        setPendienteVerificacion(false);
+        return;
+      }
+      await sendEmailVerification(currentUser);
+      setMensajeInfo('¡Correo enviado con éxito! Revisa tu bandeja de entrada y la carpeta de spam.');
+    } catch (err: any) {
+      if (err?.code === 'auth/too-many-requests') {
+        setError('Demasiados intentos. Espera unos minutos antes de solicitar otro correo.');
+      } else {
+        setError(err?.message || 'No se pudo reenviar el correo de verificación.');
+      }
+    } finally {
+      setReenviando(false);
+    }
+  };
 
   const handleLogin = async () => {
     setError('');
+    setMensajeInfo('');
+    setPendienteVerificacion(false);
 
     if (!email.trim() || !password.trim()) {
       setError('Por favor completa todos los campos.');
@@ -153,6 +191,18 @@ export default function LoginScreen() {
         'Usuario sincronizado correctamente'
       );
       setError('');
+
+      // Validar si el cliente ha verificado su correo
+      await userCredential.user.reload();
+      const isVerified = userCredential.user.emailVerified;
+      const userRole = data?.user?.role || 'Cliente';
+      const esCliente = userRole === 'Cliente';
+
+      if (esCliente && !isVerified) {
+        setPendienteVerificacion(true);
+        setError('Tu correo electrónico no ha sido verificado. Para proteger tu cuenta, debes confirmarlo antes de ingresar a VetCare.');
+        return;
+      }
 
       router.replace('/home');
 
@@ -332,7 +382,12 @@ export default function LoginScreen() {
                 placeholder="ejemplo@vetcare.com"
                 placeholderTextColor="#9CA3AF"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(val) => {
+                  setEmail(val);
+                  setError('');
+                  setMensajeInfo('');
+                  setPendienteVerificacion(false);
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -357,7 +412,12 @@ export default function LoginScreen() {
                 placeholder="••••••••••••"
                 placeholderTextColor="#9CA3AF"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(val) => {
+                  setPassword(val);
+                  setError('');
+                  setMensajeInfo('');
+                  setPendienteVerificacion(false);
+                }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
@@ -402,6 +462,34 @@ export default function LoginScreen() {
                 </Text>
 
               </View>
+            ) : null}
+
+            {/* MENSAJE DE ÉXITO O INFORMACIÓN */}
+
+            {mensajeInfo ? (
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoText}>
+                  {mensajeInfo}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* BOTÓN REENVIAR CORREO */}
+
+            {pendienteVerificacion ? (
+              <Pressable
+                onPress={handleReenviarCorreo}
+                disabled={reenviando}
+                style={({ pressed }) => [
+                  styles.resendButton,
+                  pressed && { opacity: 0.8 },
+                  reenviando && { opacity: 0.6 },
+                ]}
+              >
+                <Text style={styles.resendButtonText}>
+                  {reenviando ? 'Reenviando correo...' : '✉ Reenviar correo de verificación'}
+                </Text>
+              </Pressable>
             ) : null}
 
             {/* LOGIN */}
@@ -609,6 +697,43 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: 15,
     lineHeight: 22,
+  },
+
+  /* =========================
+     INFORMACIÓN / ÉXITO
+     ========================= */
+
+  infoContainer: {
+    marginBottom: 14,
+    padding: 12,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  infoText: {
+    color: '#065F46',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+
+  resendButton: {
+    alignSelf: 'center',
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+
+  resendButtonText: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
   },
 
   /* =========================
