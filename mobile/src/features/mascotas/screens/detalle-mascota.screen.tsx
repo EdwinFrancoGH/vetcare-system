@@ -437,7 +437,7 @@ export default function DetalleMascotaScreen() {
 
             <Pressable
               style={styles.roundButton}
-              onPress={() => console.log('Editar mascota')}
+              onPress={() => router.push({ pathname: '/agregar-mascota', params: { id } })}
             >
               <Ionicons
                 name="create-outline"

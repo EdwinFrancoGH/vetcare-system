@@ -10,6 +10,9 @@ export const obtenerMascota = (id: string, init?: RequestInit) =>
 export const crearMascota = (init: RequestInit) =>
   apiFetch(`${API_URL}/api/mascotas`, init);
 
+export const actualizarMascota = (id: string, init: RequestInit) =>
+  apiFetch(`${API_URL}/api/mascotas/${encodeURIComponent(id)}`, init);
+
 export const obtenerHistorialMascota = (id: string, init?: RequestInit) =>
   apiFetch(`${API_URL}/api/historiales/mascota/${encodeURIComponent(id)}`, init);
 
