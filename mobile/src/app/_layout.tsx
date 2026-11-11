@@ -25,6 +25,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="forgot-password" />
           <Stack.Screen name="register" />
+          <Stack.Screen name="google-auth" options={{ animation: 'none' }} />
           <Stack.Screen name="home" />
           <Stack.Screen name="explore" />
           <Stack.Screen name="tienda" />

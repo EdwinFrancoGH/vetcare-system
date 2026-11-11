@@ -18,6 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { signInWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 import { auth } from '@/config/firebase';
 import { API_URL } from '@/config/api';
+import {
+  GoogleLoginCanceladoError,
+  iniciarSesionConGoogle,
+} from '@/features/auth/services/google-auth.service';
 
 import { Colors } from '@/constants/theme';
 import { VetCareBackground } from '@/components/vetcare-background';
@@ -34,6 +38,7 @@ export default function LoginScreen() {
   const [pendienteVerificacion, setPendienteVerificacion] = useState(false);
   const [reenviando, setReenviando] = useState(false);
   const [mensajeInfo, setMensajeInfo] = useState('');
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
 
   // Ocultar automáticamente la notificación de éxito después de 4.5 segundos
   useEffect(() => {
@@ -65,6 +70,62 @@ export default function LoginScreen() {
       }
     } finally {
       setReenviando(false);
+    }
+  };
+
+  // ==========================================
+  // LOGIN CON GOOGLE
+  // ==========================================
+  // Google ya entrega el correo verificado, así que no se pide
+  // verificación. El backend crea o actualiza el usuario como "Cliente".
+  const handleGoogleLogin = async () => {
+    setError('');
+    setMensajeInfo('');
+    setPendienteVerificacion(false);
+
+    try {
+      setLoadingGoogle(true);
+
+      const userCredential = await iniciarSesionConGoogle();
+      const token = await userCredential.user.getIdToken();
+
+      const response = await fetch(`${API_URL}/api/auth/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: userCredential.user.displayName || '',
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        await signOut(auth);
+        throw new Error(data?.message || data?.error || 'No se pudo sincronizar el usuario.');
+      }
+
+      router.replace('/home');
+    } catch (error: any) {
+      if (error instanceof GoogleLoginCanceladoError) return;
+
+      if (error?.code === 'auth/account-exists-with-different-credential') {
+        setError('Ya existe una cuenta con este correo. Ingresa con tu correo y contraseña.');
+      } else if (error?.code === 'auth/network-request-failed') {
+        setError('No se pudo conectar con Firebase. Verifica tu conexión.');
+      } else if (error?.code === 'auth/invalid-credential') {
+        setError('Google no autorizó el inicio de sesión. Revisa el ID de cliente web configurado.');
+      } else {
+        const mensaje = String(error?.message || '');
+        setError(
+          /fetch failed|network request failed/i.test(mensaje)
+            ? 'No se pudo conectar con el servidor. Verifica que el backend esté activo.'
+            : mensaje || 'No se pudo iniciar sesión con Google.'
+        );
+      }
+    } finally {
+      setLoadingGoogle(false);
     }
   };
 
@@ -507,6 +568,31 @@ export default function LoginScreen() {
 
             </Pressable>
 
+            {/* SEPARADOR */}
+
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>o</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* LOGIN CON GOOGLE */}
+
+            <Pressable
+              onPress={handleGoogleLogin}
+              disabled={loadingGoogle || loading}
+              style={({ pressed }) => [
+                styles.googleButton,
+                pressed && styles.loginButtonPressed,
+                (loadingGoogle || loading) && styles.loginButtonDisabled,
+              ]}
+            >
+              <Text style={styles.googleIcon}>G</Text>
+              <Text style={styles.googleButtonText}>
+                {loadingGoogle ? 'Conectando con Google...' : 'Continuar con Google'}
+              </Text>
+            </Pressable>
+
             {/* REGISTRO */}
 
             <View
@@ -752,6 +838,52 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
+  },
+
+  /* =========================
+     LOGIN CON GOOGLE
+     ========================= */
+
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 18,
+  },
+
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#D1D5DB',
+  },
+
+  dividerText: {
+    marginHorizontal: 12,
+    color: '#6B7280',
+    fontSize: 14,
+  },
+
+  googleButton: {
+    height: 56,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#4285F4',
+  },
+
+  googleButtonText: {
+    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '600',
   },
 
   /* =========================

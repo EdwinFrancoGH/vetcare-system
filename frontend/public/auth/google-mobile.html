@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>VetCare - Volviendo a la app</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           font-family: system-ui, sans-serif; background: #1e3a8a; color: #fff; text-align: center; padding: 16px; }
+    a { display: inline-block; margin-top: 16px; padding: 12px 20px; border-radius: 12px;
+        background: #fff; color: #1e3a8a; font-weight: 700; text-decoration: none; }
+    .oculto { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>VetCare</h1>
+    <p id="mensaje">Volviendo a la aplicación…</p>
+    <a id="volver" class="oculto" href="#">Abrir VetCare</a>
+  </main>
+  <script>
+    // Página puente del login con Google de la app móvil (Expo Go).
+    // Google envía aquí el id_token (en el fragmento #) y esta página lo
+    // reenvía a la app. Solo se aceptan enlaces de la app (exp://, exps://, mobile://).
+    (function () {
+      var datos = new URLSearchParams(window.location.hash.slice(1));
+      var regreso = datos.get('state') || '';
+      var mensaje = document.getElementById('mensaje');
+
+      if (!/^(exp|exps|mobile):\/\//.test(regreso)) {
+        mensaje.textContent = 'Solicitud no válida. Vuelve a la app e inténtalo de nuevo.';
+        return;
+      }
+
+      var respuesta = new URLSearchParams();
+      ['id_token', 'error'].forEach(function (clave) {
+        if (datos.get(clave)) respuesta.set(clave, datos.get(clave));
+      });
+
+      var destino = regreso + (regreso.indexOf('?') === -1 ? '?' : '&') + respuesta.toString();
+      history.replaceState(null, '', window.location.pathname);
+
+      var boton = document.getElementById('volver');
+      boton.href = destino;
+      setTimeout(function () {
+        boton.classList.remove('oculto');
+        mensaje.textContent = 'Si la app no se abrió sola, toca el botón.';
+      }, 1500);
+
+      window.location.replace(destino);
+    })();
+  </script>
+</body>
+</html>
