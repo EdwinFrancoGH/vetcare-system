@@ -20,10 +20,12 @@ function ProductosPage() {
         nombre: "",
         categoria: "",
         descripcion: "",
+        imagenUrl: "",
         precio: "",
         stock: "",
         stockMinimo: "",
-        fechaVencimiento: ""
+        fechaVencimiento: "",
+        activo: true
     };
 
     const [formulario, setFormulario] = useState(formularioVacio);
@@ -44,11 +46,11 @@ function ProductosPage() {
     };
 
     const manejarCambio = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
 
         setFormulario({
             ...formulario,
-            [name]: value
+            [name]: type === "checkbox" ? checked : value
         });
     };
 
@@ -66,10 +68,12 @@ function ProductosPage() {
             nombre: producto.nombre || "",
             categoria: producto.categoria || "",
             descripcion: producto.descripcion || "",
+            imagenUrl: producto.imagenUrl || "",
             precio: producto.precio ?? "",
             stock: producto.stock ?? "",
             stockMinimo: producto.stockMinimo ?? "",
-            fechaVencimiento: producto.fechaVencimiento || ""
+            fechaVencimiento: producto.fechaVencimiento || "",
+            activo: producto.activo !== false
         });
 
         setError("");
@@ -259,6 +263,25 @@ function ProductosPage() {
                                 className="rounded-lg border border-gray-300 p-3 text-gray-900 md:col-span-2"
                             />
 
+                            <input
+                                type="url"
+                                name="imagenUrl"
+                                placeholder="URL de imagen (HTTPS, opcional)"
+                                value={formulario.imagenUrl}
+                                onChange={manejarCambio}
+                                className="rounded-lg border border-gray-300 p-3 text-gray-900 md:col-span-2"
+                            />
+
+                            <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
+                                <input
+                                    type="checkbox"
+                                    name="activo"
+                                    checked={formulario.activo}
+                                    onChange={manejarCambio}
+                                />
+                                Disponible en la tienda
+                            </label>
+
                             <div className="flex justify-end gap-3 md:col-span-2">
                                 <button
                                     type="button"
@@ -346,6 +369,9 @@ function ProductosPage() {
                                             >
                                                 <td className="px-6 py-4 text-gray-900">
                                                     {producto.nombre}
+                                                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${producto.activo === false ? "bg-gray-200 text-gray-600" : "bg-blue-50 text-blue-700"}`}>
+                                                        {producto.activo === false ? "Retirado" : "Publicado"}
+                                                    </span>
                                                 </td>
 
                                                 <td className="px-6 py-4 text-gray-600">
@@ -366,14 +392,18 @@ function ProductosPage() {
                                                 <td className="px-6 py-4">
                                                     <span
                                                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                                            agotado
+                                                            producto.activo === false
+                                                                ? "bg-gray-200 text-gray-700"
+                                                                : agotado
                                                                 ? "bg-gray-200 text-gray-700"
                                                                 : stockBajo
                                                                   ? "bg-red-100 text-red-700"
                                                                   : "bg-green-100 text-green-700"
                                                         }`}
                                                     >
-                                                        {agotado
+                                                        {producto.activo === false
+                                                            ? "Retirado"
+                                                            : agotado
                                                             ? "Agotado"
                                                             : stockBajo
                                                               ? "Stock bajo"
@@ -395,17 +425,15 @@ function ProductosPage() {
                                                             Editar
                                                         </button>
 
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                borrarProducto(
-                                                                    producto
-                                                                )
-                                                            }
-                                                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                                                        >
-                                                            Eliminar
-                                                        </button>
+                                                        {producto.activo !== false && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => borrarProducto(producto)}
+                                                                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                                                            >
+                                                                Retirar
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>

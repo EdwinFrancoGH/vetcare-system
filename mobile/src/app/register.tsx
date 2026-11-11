@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +28,8 @@ export default function RegisterScreen() {
     try {
       setCargando(true);
       const credential = await createUserWithEmailAndPassword(auth, correo, password);
+      try { await sendEmailVerification(credential.user); }
+      catch (verificationError) { console.warn('No se pudo enviar el correo de verificación:', verificationError); }
       const token = await credential.user.getIdToken();
       const response = await fetch(`${API_URL}/api/auth/sync`, {
         method: 'POST',

@@ -5,7 +5,9 @@ export const validarProducto = (datos, esActualizacion = false) => {
         precio,
         stock,
         stockMinimo,
-        fechaVencimiento
+        fechaVencimiento,
+        imagenUrl,
+        activo
     } = datos;
 
     // En creación, nombre y categoría son obligatorios
@@ -78,6 +80,21 @@ export const validarProducto = (datos, esActualizacion = false) => {
         if (Number.isNaN(fecha.getTime())) {
             return "La fecha de vencimiento no es válida.";
         }
+    }
+
+    if (imagenUrl !== undefined && imagenUrl !== "") {
+        if (typeof imagenUrl !== "string" || imagenUrl.length > 2048) {
+            return "La URL de imagen no es vÃ¡lida.";
+        }
+        try {
+            if (new URL(imagenUrl).protocol !== "https:") return "La URL de imagen debe usar HTTPS.";
+        } catch {
+            return "La URL de imagen no es vÃ¡lida.";
+        }
+    }
+
+    if (activo !== undefined && typeof activo !== "boolean") {
+        return "La disponibilidad del producto debe ser un valor booleano.";
     }
 
     return null;

@@ -49,7 +49,13 @@ export const registrarEntrada = async (productoId, cantidad) => {
 
         const producto = doc.data();
         const stockActual = Number(producto.stock);
+        if (!Number.isSafeInteger(stockActual) || stockActual < 0) {
+            throw new Error("STOCK_INVALIDO");
+        }
         const nuevoStock = stockActual + Number(cantidad);
+        if (!Number.isSafeInteger(nuevoStock)) {
+            throw new Error("STOCK_INVALIDO");
+        }
 
         transaction.update(docRef, {
             stock: nuevoStock,
@@ -84,6 +90,14 @@ export const registrarSalida = async (productoId, cantidad) => {
         const producto = doc.data();
         const stockActual = Number(producto.stock);
         const cantidadNumero = Number(cantidad);
+
+        if (!Number.isSafeInteger(stockActual) || stockActual < 0) {
+            throw new Error("STOCK_INVALIDO");
+        }
+
+        if (!Number.isSafeInteger(cantidadNumero) || cantidadNumero <= 0) {
+            throw new Error("CANTIDAD_INVALIDA");
+        }
 
         if (cantidadNumero > stockActual) {
             return {

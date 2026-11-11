@@ -66,11 +66,11 @@ export default function MascotaRow({ mascota, onEditar, onEliminar, mostrarFicha
 
             <button
                 onClick={() => onEliminar(mascota.id)}
-                aria-label="Eliminar mascota"
-                title="Eliminar mascota"
+                aria-label="Archivar mascota"
+                title="Archivar mascota"
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
             >
-                Eliminar
+                Archivar
             </button>
             </td>
 

@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { FaTimes, FaClinicMedical, FaCreditCard, FaInfoCircle } from "react-icons/fa";
 import Swal from "sweetalert2";
 import { crearPedido } from "../../services/tienda.service";
+import { auth } from "../../lib/firebase";
+import { crearGestorOperacionPendiente } from "../../utils/operacionPendiente";
+
+const operacionesPendientes = crearGestorOperacionPendiente({ storage: {
+    getItem: (key) => window.localStorage.getItem(key),
+    setItem: (key, value) => window.localStorage.setItem(key, value),
+    removeItem: (key) => window.localStorage.removeItem(key)
+} });
 
 // Modal de confirmación para seleccionar el método de entrega y pago
 export default function ModalFinalizarCompra({
@@ -34,10 +42,13 @@ export default function ModalFinalizarCompra({
                 tipo
             };
 
-            const respuesta = await crearPedido(payload);
+            const key = await operacionesPendientes.obtener({ uid: auth.currentUser?.uid, scope: "pedido", payload });
+            const respuesta = await crearPedido(payload, key);
             const pedido = respuesta.data.data;
+            if (!pedido?.id) throw new Error("El servidor no confirmó el pedido; se conservará para reintentar con la misma clave.");
             const numeroCorto = (pedido?.id || "").slice(0, 6).toUpperCase();
 
+            await operacionesPendientes.confirmar({ uid: auth.currentUser?.uid, scope: "pedido", key });
             onVaciarCarrito();
             onCerrar();
 

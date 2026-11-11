@@ -133,7 +133,7 @@ function VacunasPage() {
 
 export default function VacunasPageGuard() {
     return (
-        <RequireRole roles={["Administrador", "Recepcionista", "Veterinario"]}>
+        <RequireRole roles={["Administrador", "Veterinario"]}>
             <VacunasPage />
         </RequireRole>
     );

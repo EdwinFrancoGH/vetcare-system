@@ -87,6 +87,7 @@ export const eliminar = async (id) => {
 };*/
 
 import * as firestore from "./firestore.service.js";
+import db from "../config/firebase.js";
 
 const COLECCION = "mascotas";
 
@@ -100,11 +101,37 @@ export const obtenerPorPropietario = (uid) =>
 export const obtenerPorId = (id) =>
     firestore.obtenerPorId(COLECCION, id);
 
-export const crear = (datos) =>
-    firestore.crear(COLECCION, datos);
+export const crear = (datos) => {
+    const ahora = new Date().toISOString();
+    return firestore.crear(COLECCION, {
+        ...datos,
+        archivada: false,
+        fechaRegistro: ahora,
+        fechaActualizacion: ahora
+    });
+};
 
 export const actualizar = (id, datos) =>
-    firestore.actualizar(COLECCION, id, datos);
+    db.runTransaction(async (transaction) => {
+        const referencia = db.collection(COLECCION).doc(id);
+        const documento = await transaction.get(referencia);
+        if (!documento.exists || documento.data().archivada === true) return null;
+        const actualizacion = { ...datos, fechaActualizacion: new Date().toISOString() };
+        transaction.update(referencia, actualizacion);
+        return { id, ...documento.data(), ...actualizacion };
+    });
 
-export const eliminar = (id) =>
-    firestore.eliminar(COLECCION, id);
+// Conserva citas e historial clínico como registros históricos asociados.
+export const archivar = (id) => db.runTransaction(async (transaction) => {
+    const referencia = db.collection(COLECCION).doc(id);
+    const documento = await transaction.get(referencia);
+    if (!documento.exists || documento.data().archivada === true) return false;
+
+    const ahora = new Date().toISOString();
+    transaction.update(referencia, {
+        archivada: true,
+        fechaArchivada: ahora,
+        fechaActualizacion: ahora
+    });
+    return true;
+});

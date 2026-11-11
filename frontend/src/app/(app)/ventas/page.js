@@ -8,8 +8,15 @@ import {
     registrarVenta
 } from "../../../services/ventas.service";
 import RequireRole from "../../../components/auth/RequireRole";
+import { auth } from "../../../lib/firebase";
+import { crearGestorOperacionPendiente } from "../../../utils/operacionPendiente";
 
 const PATRON_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const operacionesPendientes = crearGestorOperacionPendiente({ storage: {
+    getItem: (key) => window.localStorage.getItem(key),
+    setItem: (key, value) => window.localStorage.setItem(key, value),
+    removeItem: (key) => window.localStorage.removeItem(key)
+} });
 
 function VentasPage() {
     const [productos, setProductos] = useState([]);
@@ -206,7 +213,7 @@ function VentasPage() {
             setError("");
             setMensaje("");
 
-            const respuesta = await registrarVenta({
+            const datosVenta = {
                 cliente: cliente.trim(),
                 correoCliente: correoLimpio,
                 metodoPago,
@@ -214,14 +221,19 @@ function VentasPage() {
                     productoId: item.productoId,
                     cantidad: item.cantidad
                 }))
-            });
-
+            };
+            const key = await operacionesPendientes.obtener({ uid: auth.currentUser?.uid, scope: "venta", payload: datosVenta });
+            const respuesta = await registrarVenta(datosVenta, key);
+            if (!respuesta.data?.data?.id) throw new Error("El servidor no confirmó la venta; se conservará para reintentar con la misma clave.");
+            await operacionesPendientes.confirmar({ uid: auth.currentUser?.uid, scope: "venta", key });
             setCarrito([]);
             cambiarTipoCliente("nuevo");
             setMetodoPago("Efectivo");
 
             if (respuesta.data?.facturaEnviada) {
                 setMensaje(`Venta registrada correctamente. Factura enviada a ${correoLimpio}.`);
+            } else if (respuesta.data?.facturaEnviada === null) {
+                setMensaje("La venta ya estaba registrada. No se volvió a enviar la factura; el estado del envío original está pendiente de confirmar.");
             } else {
                 setMensaje(
                     "Venta registrada correctamente, pero no se pudo enviar la factura por correo (revisa la configuración SMTP del servidor)."

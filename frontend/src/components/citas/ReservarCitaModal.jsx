@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import { FaCalendarAlt, FaClock, FaUserMd, FaTimes } from "react-icons/fa";
 import { reservarCita } from "../../services/citas.service";
+import { obtenerServiciosVeterinarios } from "../../services/servicios-veterinarios.service";
 import { formatearFechaLarga } from "../../utils/citas";
 import { construirEnlaceGoogleCalendar } from "../../utils/calendario";
 import { useAuth } from "../../context/AuthContext";
@@ -12,6 +13,14 @@ import SelectorMascotaCita from "./SelectorMascotaCita";
 import ChipsMotivo from "./ChipsMotivo";
 
 const REGEX_TELEFONO_SV = /^(\+?503[\s-]?)?[2-7]\d{3}[\s-]?\d{4}$/;
+const formatoPrecioUSD = (centavos) => {
+    if (!Number.isSafeInteger(centavos)) return "Tarifa no disponible";
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        currencyDisplay: "code",
+    }).format(centavos / 100);
+};
 
 function escaparHTML(texto) {
     if (texto === null || texto === undefined) return "";
@@ -26,30 +35,52 @@ function escaparHTML(texto) {
 export default function ReservarCitaModal({ cita, mascotas = [], onClose, onSuccess }) {
     const { userRole, userData } = useAuth();
     const esCliente = userRole === "Cliente";
+    const propInicial = esCliente ? String(userData?.name ?? "") : "";
+    const telInicial = esCliente ? String(userData?.phone ?? userData?.telefono ?? "") : "";
+    const unica = esCliente && mascotas.length === 1 ? mascotas[0] : null;
 
     const [formData, setFormData] = useState({
-        mascotaId: "",
-        propietario: "",
-        telefono: "",
+        mascotaId: unica ? unica.id : "",
+        servicioId: "",
+        propietario: unica ? String(unica.propietario || propInicial) : propInicial,
+        telefono: unica ? String(unica.telefono || telInicial) : telInicial,
         motivo: "",
     });
     const [errores, setErrores] = useState({});
     const [enviando, setEnviando] = useState(false);
+    const [servicios, setServicios] = useState([]);
+    const [cargandoServicios, setCargandoServicios] = useState(true);
+    const [errorServicios, setErrorServicios] = useState("");
+    const envioEnCurso = useRef(false);
 
     useEffect(() => {
-        if (!cita) return;
-        const propInicial = esCliente ? String(userData?.name ?? "") : "";
-        const telInicial = esCliente ? String(userData?.phone ?? userData?.telefono ?? "") : "";
-        const unica = esCliente && mascotas.length === 1 ? mascotas[0] : null;
+        if (!cita) return undefined;
+        let vigente = true;
+        obtenerServiciosVeterinarios()
+            .then((respuesta) => {
+                if (vigente) setServicios(respuesta.data?.data || []);
+            })
+            .catch((error) => {
+                if (vigente) setErrorServicios(error.response?.data?.message || "No se pudo cargar el catalogo de servicios.");
+            })
+            .finally(() => {
+                if (vigente) setCargandoServicios(false);
+            });
+        return () => { vigente = false; };
+    }, [cita]);
 
-        setFormData({
-            mascotaId: unica ? unica.id : "",
-            propietario: unica ? String(unica.propietario || propInicial) : propInicial,
-            telefono: unica ? String(unica.telefono || telInicial) : telInicial,
-            motivo: "",
-        });
-        setErrores({});
-    }, [cita, mascotas, esCliente, userData]);
+    async function recargarServicios() {
+        setCargandoServicios(true);
+        setErrorServicios("");
+        try {
+            const respuesta = await obtenerServiciosVeterinarios();
+            setServicios(respuesta.data?.data || []);
+        } catch (error) {
+            setErrorServicios(error.response?.data?.message || "No se pudo cargar el catalogo de servicios.");
+        } finally {
+            setCargandoServicios(false);
+        }
+    }
 
     if (!cita) return null;
 
@@ -84,8 +115,10 @@ export default function ReservarCitaModal({ cita, mascotas = [], onClose, onSucc
 
     async function handleSubmit(e) {
         e.preventDefault();
+        if (envioEnCurso.current) return;
         const nuevosErrores = {};
         if (!formData.mascotaId) nuevosErrores.mascotaId = "Debe seleccionar una mascota.";
+        if (!formData.servicioId) nuevosErrores.servicioId = "Debe seleccionar un servicio veterinario.";
         if (!String(formData.propietario ?? "").trim())
             nuevosErrores.propietario = "El nombre del propietario es obligatorio.";
         if (!String(formData.telefono ?? "").trim()) {
@@ -115,14 +148,16 @@ export default function ReservarCitaModal({ cita, mascotas = [], onClose, onSucc
             return;
         }
 
+        envioEnCurso.current = true;
         try {
             setEnviando(true);
-            await reservarCita({
+            const respuesta = await reservarCita({
                 veterinario: cita.veterinario,
                 fecha: cita.fecha,
                 hora: cita.hora,
                 ...formData,
             });
+            const citaCreada = respuesta.data?.data;
 
             const mascotaElegida = mascotas.find((m) => m.id === formData.mascotaId);
             const nombreMascota = mascotaElegida?.nombre || "tu mascota";
@@ -143,6 +178,8 @@ export default function ReservarCitaModal({ cita, mascotas = [], onClose, onSucc
                     <p><strong>Fecha:</strong> ${escaparHTML(formatearFechaLarga(cita.fecha))}</p>
                     <p><strong>Hora:</strong> ${escaparHTML(cita.hora)}</p>
                     <p><strong>Veterinario:</strong> Dr(a). ${escaparHTML(cita.veterinario)}</p>
+                    <p><strong>Servicio:</strong> ${escaparHTML(citaCreada?.servicioNombre || "Servicio veterinario")}</p>
+                    <p><strong>Tarifa confirmada:</strong> ${escaparHTML(formatoPrecioUSD(citaCreada?.precioCentavos))}</p>
                 </div>` +
                     (enlaceCalendar
                         ? `<div style="margin-top: 1.25rem; text-align: center;"><a href="${escaparHTML(enlaceCalendar)}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #1d4ed8; color: #ffffff; padding: 9px 18px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.875rem;">+ Agregar a mi calendario</a></div>`
@@ -161,12 +198,15 @@ export default function ReservarCitaModal({ cita, mascotas = [], onClose, onSucc
                 text: error.response?.data?.message || "Ocurrió un error al reservar la cita.",
                 confirmButtonColor: "#1d4ed8",
             });
-            if (error.response?.status === 409) {
+            if (error.response?.data?.code === "SERVICIO_NO_DISPONIBLE") {
+                await recargarServicios();
+            } else if (error.response?.status === 409) {
                 await onSuccess();
                 onClose();
             }
         } finally {
             setEnviando(false);
+            envioEnCurso.current = false;
         }
     }
 
@@ -209,6 +249,39 @@ export default function ReservarCitaModal({ cita, mascotas = [], onClose, onSucc
                 </div>
 
                 <div className="p-5 sm:p-6 space-y-4">
+                    <div>
+                        <label htmlFor="servicioId" className="mb-1.5 block text-sm font-medium text-gray-700">
+                            Servicio veterinario <span className="text-red-500">*</span>
+                        </label>
+                        {cargandoServicios ? (
+                            <p role="status" className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">Cargando servicios veterinarios...</p>
+                        ) : errorServicios ? (
+                            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                                <p role="alert">{errorServicios}</p>
+                                <button type="button" onClick={recargarServicios} className="mt-2 font-semibold underline">Reintentar</button>
+                            </div>
+                        ) : servicios.length === 0 ? (
+                            <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">No hay servicios activos para reservar en este momento.</p>
+                        ) : (
+                            <select
+                                id="servicioId"
+                                name="servicioId"
+                                value={formData.servicioId}
+                                onChange={handleChange}
+                                required
+                                aria-invalid={Boolean(errores.servicioId)}
+                                className="w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-blue-500 focus:outline-none"
+                            >
+                                <option value="">Selecciona un servicio</option>
+                                {servicios.filter((servicio) => servicio.activo === true).map((servicio) => (
+                                    <option key={servicio.id} value={servicio.id}>
+                                        {servicio.nombre} - {formatoPrecioUSD(servicio.precioCentavos)}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                        {errores.servicioId && <p className="mt-1 text-sm text-red-600">{errores.servicioId}</p>}
+                    </div>
                     <SelectorMascotaCita
                         esCliente={esCliente}
                         mascotas={mascotas}
@@ -280,7 +353,7 @@ export default function ReservarCitaModal({ cita, mascotas = [], onClose, onSucc
                     </button>
                     <button
                         type="submit"
-                        disabled={enviando}
+                        disabled={enviando || cargandoServicios || servicios.length === 0 || Boolean(errorServicios)}
                         className="rounded-lg bg-blue-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 shadow-sm disabled:opacity-50"
                     >
                         {enviando ? "Reservando..." : "Confirmar reserva"}

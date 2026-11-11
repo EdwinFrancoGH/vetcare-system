@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { VetCareBackground } from '@/components/vetcare-background';
+import { API_URL } from '@/config/api';
 
 import { auth } from '@/config/firebase';
 import {
@@ -81,6 +82,7 @@ export default function DetalleMascotaScreen() {
   const { id } = useLocalSearchParams();
 
   const [mascota, setMascota] = useState<Mascota | null>(null);
+  const [userRole, setUserRole] = useState('');
 
   const [historiales, setHistoriales] = useState<Historial[]>([]);
   const [vacunas, setVacunas] = useState<Vacuna[]>([]);
@@ -92,6 +94,7 @@ export default function DetalleMascotaScreen() {
 
   const [error, setError] = useState('');
   const [errorSalud, setErrorSalud] = useState('');
+  const puedeVerClinica = ['Administrador', 'Veterinario', 'Cliente'].includes(userRole);
 
   const notasClinicas: NotaClinica[] = [
     ...historiales
@@ -130,6 +133,19 @@ export default function DetalleMascotaScreen() {
       }
 
       const token = await usuario.getIdToken();
+      try {
+        const perfilResponse = await fetch(`${API_URL}/api/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (perfilResponse.ok) {
+          const perfil = await perfilResponse.json();
+          setUserRole(perfil?.user?.role || '');
+        } else {
+          setUserRole('');
+        }
+      } catch {
+        setUserRole('');
+      }
 
       const response = await obtenerMascota(
         id,
@@ -179,6 +195,7 @@ export default function DetalleMascotaScreen() {
 
   const cargarSalud = async () => {
     try {
+      if (!puedeVerClinica) return;
       if (!id || typeof id !== 'string') {
         setErrorSalud('No se recibió el ID de la mascota.');
         return;
@@ -278,6 +295,7 @@ export default function DetalleMascotaScreen() {
   };
 
   const cambiarPestana = (pestana: 'informacion' | 'salud' | 'notas') => {
+    if (pestana !== 'informacion' && !puedeVerClinica) return;
     setPestanaActiva(pestana);
 
     if (pestana === 'salud' || pestana === 'notas') {
@@ -505,7 +523,7 @@ export default function DetalleMascotaScreen() {
               )}
             </Pressable>
 
-            <Pressable
+            {puedeVerClinica && <Pressable
               style={styles.tab}
               onPress={() => cambiarPestana('salud')}
             >
@@ -522,9 +540,9 @@ export default function DetalleMascotaScreen() {
               {pestanaActiva === 'salud' && (
                 <View style={styles.activeIndicator} />
               )}
-            </Pressable>
+            </Pressable>}
 
-            <Pressable
+            {puedeVerClinica && <Pressable
               style={styles.tab}
               onPress={() => cambiarPestana('notas')}
             >
@@ -532,7 +550,7 @@ export default function DetalleMascotaScreen() {
                 Notas
               </Text>
               {pestanaActiva === 'notas' && <View style={styles.activeIndicator} />}
-            </Pressable>
+            </Pressable>}
 
           </View>
 
@@ -605,7 +623,7 @@ export default function DetalleMascotaScreen() {
               SALUD
           ========================================= */}
 
-          {pestanaActiva === 'salud' && (
+          {puedeVerClinica && pestanaActiva === 'salud' && (
             <View style={styles.healthSection}>
 
               {cargandoSalud ? (
@@ -821,7 +839,7 @@ export default function DetalleMascotaScreen() {
             </View>
           )}
 
-          {pestanaActiva === 'notas' && (
+          {puedeVerClinica && pestanaActiva === 'notas' && (
             <View style={styles.healthSection}>
               {cargandoSalud ? (
                 <View style={styles.healthLoading}>

@@ -28,6 +28,8 @@ export default function RootLayout() {
           <Stack.Screen name="home" />
           <Stack.Screen name="explore" />
           <Stack.Screen name="tienda" />
+          <Stack.Screen name="mis-pedidos" />
+          <Stack.Screen name="producto/[id]" />
 
           {/* Módulo de Mascotas */}
           <Stack.Screen name="mascotas" />
@@ -38,6 +40,9 @@ export default function RootLayout() {
           <Stack.Screen name="citas" />
           <Stack.Screen name="agendar-cita" />
           <Stack.Screen name="detalle-cita" />
+
+          {/* Revisión administrativa de pagos veterinarios */}
+          <Stack.Screen name="pagos-citas" />
         </Stack>
       </ThemeProvider>
     </SafeAreaProvider>

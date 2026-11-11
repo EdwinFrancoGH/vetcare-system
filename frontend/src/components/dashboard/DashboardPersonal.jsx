@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { obtenerMascotas } from "../../services/mascotas.service";
 import { obtenerHistoriales } from "../../services/historial.service";
@@ -8,35 +8,37 @@ import { obtenerVacunas } from "../../services/vacunas.service";
 import { calcularAlertasGlobales } from "../../utils/estadoClinico";
 import BusquedaInteligente from "./BusquedaInteligente";
 import PanelAlertas from "./PanelAlertas";
+import { useAuth } from "../../context/AuthContext";
 
 export default function DashboardPersonal() {
+    const { userRole } = useAuth();
     const [mascotas, setMascotas] = useState([]);
     const [historiales, setHistoriales] = useState([]);
     const [vacunas, setVacunas] = useState([]);
     const [cargando, setCargando] = useState(true);
 
-    useEffect(() => {
-        cargarDatos();
-    }, []);
-
-    async function cargarDatos() {
+    const cargarDatos = useCallback(async () => {
         try {
             const [respMascotas, respHistoriales, respVacunas] = await Promise.all([
                 obtenerMascotas(),
-                obtenerHistoriales(),
-                obtenerVacunas(),
+                userRole === "Recepcionista" ? Promise.resolve(null) : obtenerHistoriales(),
+                userRole === "Recepcionista" ? Promise.resolve(null) : obtenerVacunas(),
             ]);
 
             setMascotas(respMascotas.data.data);
-            setHistoriales(respHistoriales.data.historiales);
-            setVacunas(respVacunas.data.data);
+            setHistoriales(respHistoriales?.data?.historiales || []);
+            setVacunas(respVacunas?.data?.data || []);
         } catch (error) {
             console.error("Error al cargar el dashboard:", error);
             Swal.fire("Error", "No se pudieron cargar los datos. Verifica tu conexión e inténtalo de nuevo.", "error");
         } finally {
             setCargando(false);
         }
-    }
+    }, [userRole]);
+
+    useEffect(() => {
+        if (userRole) cargarDatos();
+    }, [userRole, cargarDatos]);
 
     const alertas = calcularAlertasGlobales(mascotas, historiales, vacunas);
 

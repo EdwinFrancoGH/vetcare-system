@@ -1,4 +1,5 @@
 import express from "express";
+import { exigirClaveIdempotencia } from "../utils/idempotency.js";
 
 import {
     obtenerVentas,
@@ -15,6 +16,6 @@ router.get("/", obtenerVentas);
 router.get("/:id", obtenerVentaPorId);
 
 // Registrar una nueva venta
-router.post("/", registrarVenta);
+router.post("/", exigirClaveIdempotencia, registrarVenta);
 
 export default router;

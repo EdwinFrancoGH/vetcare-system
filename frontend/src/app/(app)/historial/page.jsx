@@ -170,7 +170,7 @@ function HistorialPage() {
 
 export default function HistorialPageGuard() {
     return (
-        <RequireRole roles={["Administrador", "Recepcionista", "Veterinario"]}>
+        <RequireRole roles={["Administrador", "Veterinario"]}>
             <HistorialPage />
         </RequireRole>
     );
