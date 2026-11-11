@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useAuth } from "../../../context/AuthContext";
 import api from "../../../services/api";
+import { sendEmailVerification } from "firebase/auth";
 import Swal from "sweetalert2";
 import Link from "next/link";
 import Image from "next/image";
@@ -26,7 +27,15 @@ export default function RegisterPage() {
     const onSubmit = async ({ email, password }) => {
         setIsLoading(true);
         try {
-            await registerUser(email, password);
+            const credential = await registerUser(email, password);
+
+            // La ficha administrativa se vincula al UID solo cuando el
+            // propietario demuestra control del correo registrado.
+            try {
+                await sendEmailVerification(credential.user);
+            } catch (error) {
+                console.error("No se pudo enviar la verificación del correo:", error);
+            }
 
             // api.js ya adjunta el token de Firebase del usuario recién
             // creado (interceptor en services/api.js), así que no hace

@@ -27,27 +27,30 @@ export const validarCita = (datos) => {
         motivo
     } = datos;
 
-    if (!veterinario || veterinario.trim() === "") {
+    if (typeof veterinario !== "string" || veterinario.trim() === "") {
         return "El veterinario es obligatorio.";
     }
 
-    if (!fecha) {
-        return "La fecha de la cita es obligatoria.";
+    if (typeof fecha !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        return "La fecha debe tener formato YYYY-MM-DD.";
+    }
+    const [anio, mes, dia] = fecha.split("-").map(Number);
+    const fechaValida = new Date(Date.UTC(anio, mes - 1, dia));
+    if (fechaValida.toISOString().slice(0, 10) !== fecha) return "La fecha de la cita no es válida.";
+
+    if (typeof hora !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) {
+        return "La hora debe tener formato HH:mm.";
     }
 
-    if (!hora || hora.trim() === "") {
-        return "La hora de la cita es obligatoria.";
-    }
-
-    if (!mascotaId || mascotaId.trim() === "") {
+    if (typeof mascotaId !== "string" || mascotaId.trim() === "") {
         return "La mascota (mascotaId) es obligatoria.";
     }
 
-    if (!propietario || propietario.trim() === "") {
+    if (typeof propietario !== "string" || propietario.trim() === "") {
         return "El nombre del propietario es obligatorio.";
     }
 
-    if (!telefono || telefono.trim() === "") {
+    if (typeof telefono !== "string" || telefono.trim() === "") {
         return "El teléfono de contacto es obligatorio.";
     }
 
@@ -56,7 +59,7 @@ export const validarCita = (datos) => {
         return "El teléfono debe tener 8 dígitos (ej. 7123-4567).";
     }
 
-    if (!motivo || motivo.trim() === "") {
+    if (typeof motivo !== "string" || motivo.trim() === "") {
         return "El motivo de la cita es obligatorio.";
     }
 

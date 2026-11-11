@@ -4,7 +4,7 @@ import {
     obtenerPorId,
     crear,
     actualizar,
-    eliminar
+    archivar
 } from "../services/mascotas.service.js";
 
 import { validarMascota } from "../validators/mascota.validator.js";
@@ -25,11 +25,12 @@ export const obtenerMascotas = async (req, res) => {
         const mascotas = esCliente(req)
             ? await obtenerPorPropietario(req.user.uid)
             : await obtenerTodas();
+        const mascotasActivas = mascotas.filter((mascota) => mascota.archivada !== true);
 
         res.status(200).json({
             ok: true,
             message: "Mascotas obtenidas correctamente.",
-            data: mascotas
+            data: mascotasActivas
         });
 
     } catch (error) {
@@ -86,6 +87,8 @@ export const crearMascota = async (req, res) => {
         }
 
         const datos = { ...req.body };
+        delete datos.archivada;
+        delete datos.fechaArchivada;
 
         // Un Cliente siempre registra la mascota a su propio nombre.
         if (esCliente(req)) {
@@ -134,8 +137,17 @@ export const actualizarMascota = async (req, res) => {
             });
         }
 
+        if (existente.archivada === true) {
+            return res.status(409).json({
+                ok: false,
+                message: "No se puede modificar una mascota archivada."
+            });
+        }
+
         const datos = { ...req.body };
         delete datos.id;
+        delete datos.archivada;
+        delete datos.fechaArchivada;
 
         // Un Cliente no puede "regalar" su mascota a otra cuenta.
         if (esCliente(req)) {
@@ -144,6 +156,13 @@ export const actualizarMascota = async (req, res) => {
         }
 
         const mascota = await actualizar(id, datos);
+
+        if (!mascota) {
+            return res.status(409).json({
+                ok: false,
+                message: "La mascota ya no está activa."
+            });
+        }
 
         res.status(200).json({
             ok: true,
@@ -175,11 +194,22 @@ export const eliminarMascota = async (req, res) => {
             });
         }
 
-        await eliminar(id);
+        if (existente.archivada === true) {
+            return res.status(409).json({
+                ok: false,
+                message: "La mascota ya está archivada."
+            });
+        }
+
+        const archivada = await archivar(id);
+
+        if (!archivada) {
+            return res.status(404).json({ ok: false, message: "Mascota no encontrada." });
+        }
 
         res.status(200).json({
             ok: true,
-            message: "Mascota eliminada correctamente."
+            message: "Mascota archivada correctamente."
         });
 
     } catch (error) {

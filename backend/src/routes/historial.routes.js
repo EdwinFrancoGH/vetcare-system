@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { verifyRoles } from "../middlewares/auth.middleware.js";
 
 import {
     obtenerHistoriales,
@@ -9,18 +10,24 @@ import {
     eliminarHistorial
 } from "../controllers/historial.controller.js";
 
+export const crearRouterHistorial = (verificarRoles = verifyRoles) => {
 const router = Router();
+const soloLectura = verificarRoles("Administrador", "Veterinario", "Cliente");
+const soloClinico = verificarRoles("Administrador", "Veterinario");
 
-router.get("/", obtenerHistoriales);
+router.get("/", soloLectura, obtenerHistoriales);
 
-router.get("/mascota/:mascotaId", obtenerHistorialPorMascota);
+router.get("/mascota/:mascotaId", soloLectura, obtenerHistorialPorMascota);
 
-router.get("/:id", obtenerHistorialPorId);
+router.get("/:id", soloLectura, obtenerHistorialPorId);
 
-router.post("/", crearHistorial);
+router.post("/", soloClinico, crearHistorial);
 
-router.put("/:id", actualizarHistorial);
+router.put("/:id", soloClinico, actualizarHistorial);
 
-router.delete("/:id", eliminarHistorial);
+router.delete("/:id", soloClinico, eliminarHistorial);
 
-export default router;
+return router;
+};
+
+export default crearRouterHistorial();

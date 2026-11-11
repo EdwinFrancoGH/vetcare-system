@@ -1,4 +1,4 @@
-import { obtenerTodos as obtenerTodosProductos } from "../services/productos.service.js";
+import { obtenerTodos as obtenerTodosProductos, obtenerPorId as obtenerProductoPorId } from "../services/productos.service.js";
 import {
     crearPedido as crearPedidoService,
     obtenerPorCliente,
@@ -9,9 +9,9 @@ import {
 import { validarPedido } from "../validators/pedido.validator.js";
 
 // Catálogo público para clientes: solo productos activos con stock disponible
-export const obtenerCatalogo = async (req, res) => {
+export const crearControladorObtenerCatalogo = (obtenerProductos = obtenerTodosProductos) => async (req, res) => {
     try {
-        const productos = await obtenerTodosProductos();
+        const productos = await obtenerProductos();
 
         const catalogo = productos
             .filter((p) => p.activo !== false && Number(p.stock) > 0)
@@ -23,6 +23,10 @@ export const obtenerCatalogo = async (req, res) => {
                     precio: Number(p.precio),
                     stock: Number(p.stock)
                 };
+
+                if (typeof p.imagenUrl === "string" && p.imagenUrl.startsWith("https://")) {
+                    item.imagenUrl = p.imagenUrl;
+                }
 
                 if (p.descripcion) {
                     item.descripcion = p.descripcion;
@@ -45,6 +49,41 @@ export const obtenerCatalogo = async (req, res) => {
     }
 };
 
+export const obtenerCatalogo = crearControladorObtenerCatalogo();
+
+// Detalle público de producto activo, incluso si está agotado.
+export const crearControladorObtenerProductoTienda = (buscar = obtenerProductoPorId) => async (req, res) => {
+    try {
+        const producto = await buscar(req.params.id);
+        if (!producto || producto.activo === false) {
+            return res.status(404).json({ ok: false, message: "Producto no encontrado." });
+        }
+
+        const data = {
+            id: producto.id,
+            nombre: producto.nombre,
+            categoria: producto.categoria || "General",
+            descripcion: producto.descripcion || "",
+            precio: Number(producto.precio),
+            stock: Number(producto.stock) || 0
+        };
+        if (typeof producto.imagenUrl === "string") {
+            try {
+                const imagen = new URL(producto.imagenUrl);
+                if (imagen.protocol === "https:") data.imagenUrl = imagen.href;
+            } catch {
+                // Una URL inválida se omite y la interfaz muestra el icono de categoría.
+            }
+        }
+
+        return res.status(200).json({ ok: true, message: "Producto obtenido correctamente.", data });
+    } catch (error) {
+        return res.status(500).json({ ok: false, message: "Error al obtener el producto.", error: error.message });
+    }
+};
+
+export const obtenerProductoTienda = crearControladorObtenerProductoTienda();
+
 // Crear pedido para el cliente autenticado
 export const crearPedido = async (req, res) => {
     try {
@@ -66,15 +105,21 @@ export const crearPedido = async (req, res) => {
             clienteNombre,
             clienteEmail,
             productos: req.body.productos,
-            tipo: req.body.tipo
+            tipo: req.body.tipo,
+            idempotencyKey: req.idempotencyKey
         });
 
-        return res.status(201).json({
+        res.set('Idempotency-Replayed', String(nuevoPedido.repetido));
+        return res.status(nuevoPedido.repetido ? 200 : 201).json({
             ok: true,
             message: "Pedido creado correctamente.",
-            data: nuevoPedido
+            data: nuevoPedido.pedido
         });
     } catch (error) {
+        if (error.message === "IDEMPOTENCY_KEY_REUSED") {
+            return res.status(409).json({ ok: false, message: "La clave de solicitud ya se usó con otros datos." });
+        }
+
         if (error.message.startsWith("PRODUCTO_NO_ENCONTRADO:")) {
             return res.status(404).json({
                 ok: false,
@@ -92,6 +137,13 @@ export const crearPedido = async (req, res) => {
             });
         }
 
+        if (error.message.startsWith("PRODUCTO_INVALIDO") || error.message === "TOTAL_INVALIDO") {
+            return res.status(400).json({
+                ok: false,
+                message: "Los datos de productos o cantidades no son válidos."
+            });
+        }
+
         return res.status(500).json({
             ok: false,
             message: "Error al crear el pedido.",
@@ -101,15 +153,15 @@ export const crearPedido = async (req, res) => {
 };
 
 // Obtener pedidos del cliente autenticado
-export const obtenerMisPedidos = async (req, res) => {
+export const crearControladorObtenerMisPedidos = ({ listar = obtenerPorCliente, vencer = vencerPedidosAntiguos } = {}) => async (req, res) => {
     try {
         try {
-            await vencerPedidosAntiguos();
+            await vencer();
         } catch (errorVencimiento) {
             console.error("Error al vencer pedidos antiguos:", errorVencimiento.message);
         }
 
-        const pedidos = await obtenerPorCliente(req.user.uid);
+        const pedidos = await listar(req.user.uid);
 
         return res.status(200).json({
             ok: true,
@@ -125,11 +177,13 @@ export const obtenerMisPedidos = async (req, res) => {
     }
 };
 
+export const obtenerMisPedidos = crearControladorObtenerMisPedidos();
+
 // Cancelar un pedido propio solo si está en estado pendiente
-export const cancelarMiPedido = async (req, res) => {
+export const crearControladorCancelarMiPedido = ({ buscar = obtenerPorId, actualizar = cambiarEstado } = {}) => async (req, res) => {
     try {
         const { id } = req.params;
-        const pedido = await obtenerPorId(id);
+        const pedido = await buscar(id);
 
         if (!pedido || pedido.clienteUid !== req.user.uid) {
             return res.status(404).json({
@@ -145,11 +199,12 @@ export const cancelarMiPedido = async (req, res) => {
             });
         }
 
-        const resultado = await cambiarEstado(
+        const resultado = await actualizar(
             id,
             "cancelado",
             null,
-            "Cancelado por el cliente"
+            "Cancelado por el cliente",
+            { uid: req.user?.uid || null, role: "Cliente" }
         );
 
         return res.status(200).json({
@@ -172,3 +227,5 @@ export const cancelarMiPedido = async (req, res) => {
         });
     }
 };
+
+export const cancelarMiPedido = crearControladorCancelarMiPedido();

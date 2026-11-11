@@ -18,6 +18,8 @@ import reportesRoutes from "./routes/reportes.routes.js";
 import usersRoutes from "./routes/users.routes.js";
 import tiendaRoutes from "./routes/tienda.routes.js";
 import pedidosRoutes from "./routes/pedidos.routes.js";
+import serviciosVeterinariosRoutes from "./routes/servicios-veterinarios.routes.js";
+import pagosRoutes from "./routes/pagos.routes.js";
 
 import { verifyToken, verifyRoles, cargarRol } from "./middlewares/auth.middleware.js";
 
@@ -88,6 +90,8 @@ app.use("/api/ventas", verifyToken, SOLO_ADMINISTRACION, ventasRoutes);
 app.use("/api/reportes", verifyToken, SOLO_ADMINISTRACION, reportesRoutes);
 app.use("/api/tienda", verifyToken, cargarRol, tiendaRoutes);
 app.use("/api/pedidos", verifyToken, verifyRoles("Administrador", "Recepcionista"), pedidosRoutes);
+app.use("/api/servicios-veterinarios", verifyToken, cargarRol, serviciosVeterinariosRoutes);
+app.use("/api/pagos", verifyToken, pagosRoutes);
 
 app.get("/", (req, res) => {
     res.json({

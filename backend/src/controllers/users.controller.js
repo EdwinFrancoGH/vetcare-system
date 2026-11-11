@@ -64,6 +64,8 @@ export const createUser = async (req, res) => {
 
         const newUser = {
             email,
+            emailNormalized: email.trim().toLowerCase(),
+            emailVerified: userRecord.emailVerified === true,
             name: name || email.split('@')[0],
             role,
             createdAt: new Date().toISOString()
@@ -197,10 +199,12 @@ export const updateUser = async (req, res) => {
             updateDataAuth.password = password;
         }
 
-        await auth.updateUser(uid, updateDataAuth);
+        const updatedAuthUser = await auth.updateUser(uid, updateDataAuth);
 
         const updateDataFirestore = {
             email,
+            emailNormalized: email.trim().toLowerCase(),
+            emailVerified: updatedAuthUser.emailVerified === true,
             name,
             role,
             updatedAt: new Date().toISOString()

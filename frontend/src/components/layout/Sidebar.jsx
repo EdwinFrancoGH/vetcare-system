@@ -18,6 +18,8 @@ import {
     FaTimes,
     FaStore,
     FaClipboardList,
+    FaStethoscope,
+    FaMoneyBillWave,
 } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 
@@ -30,13 +32,15 @@ const menu = [
     { name: "Dashboard", href: "/dashboard", icon: <FaHome />, roles: ["Administrador", "Recepcionista", "Veterinario", "Cliente"] },
     // Un Cliente también ve "Mascotas": el backend le devuelve solo las suyas.
     { name: "Mascotas", href: "/mascotas", icon: <FaDog />, roles: ["Administrador", "Recepcionista", "Veterinario", "Cliente"] },
-    { name: "Historial Clínico", href: "/historial", icon: <FaNotesMedical />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
+    { name: "Historial Clínico", href: "/historial", icon: <FaNotesMedical />, roles: ["Administrador", "Veterinario"] },
     { name: "Citas", href: "/citas", icon: <FaCalendarAlt /> },
     { name: "Tienda", href: "/tienda", icon: <FaStore />, roles: ["Cliente"] },
-    { name: "Vacunas", href: "/vacunas", icon: <FaSyringe />, roles: ["Administrador", "Recepcionista", "Veterinario"] },
+    { name: "Vacunas", href: "/vacunas", icon: <FaSyringe />, roles: ["Administrador", "Veterinario"] },
     { name: "Clientes", href: "/clientes", icon: <FaUsers />, roles: ["Administrador", "Recepcionista"] },
     // --- Módulo de ventas, integrado desde la rama auth/ventas ---
     { name: "Productos", href: "/productos", icon: <FaBoxOpen />, roles: ["Administrador", "Recepcionista"] },
+    { name: "Servicios veterinarios", href: "/servicios-veterinarios", icon: <FaStethoscope />, roles: ["Administrador"] },
+    { name: "Pagos de citas", href: "/pagos-citas", icon: <FaMoneyBillWave />, roles: ["Administrador", "Recepcionista"] },
     { name: "Inventario", href: "/inventario", icon: <FaBoxes />, roles: ["Administrador", "Recepcionista"] },
     { name: "Ventas", href: "/ventas", icon: <FaShoppingCart />, roles: ["Administrador", "Recepcionista"] },
     { name: "Pedidos", href: "/pedidos", icon: <FaClipboardList />, roles: ["Administrador", "Recepcionista"] },

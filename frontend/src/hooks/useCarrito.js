@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
+import { obtenerCarritoVisible } from "../utils/carritoUsuario";
 
 const LIMITE_MAXIMO_UNIDADES = 20;
 
@@ -10,67 +11,58 @@ export function useCarrito() {
     const { user } = useAuth();
     const uid = user?.uid || null;
 
-    const [items, setItems] = useState([]);
-    const [cargado, setCargado] = useState(false);
-    const itemsRef = useRef([]);
-
-    // Mantener la referencia sincronizada para lecturas inmediatas
-    useEffect(() => {
-        itemsRef.current = items;
-    }, [items]);
+    const [carrito, setCarrito] = useState({ uid: null, items: [] });
+    const carritoRef = useRef({ uid: null, items: [] });
+    const { items, cargado } = obtenerCarritoVisible(carrito, uid);
 
     // Cargar el carrito específico del usuario autenticado
     useEffect(() => {
-        if (!uid) {
-            setItems([]);
-            itemsRef.current = [];
-            setCargado(true);
-            return;
-        }
-
-        try {
-            const guardado = localStorage.getItem(`vetcare_carrito_${uid}`);
-            if (guardado) {
-                const parseado = JSON.parse(guardado);
-                if (Array.isArray(parseado)) {
-                    setItems(parseado);
-                    itemsRef.current = parseado;
-                } else {
-                    setItems([]);
-                    itemsRef.current = [];
-                }
-            } else {
-                setItems([]);
-                itemsRef.current = [];
+        let activa = true;
+        Promise.resolve().then(() => {
+            if (!activa) return;
+            if (!uid) {
+                const vacio = { uid: null, items: [] };
+                carritoRef.current = vacio;
+                setCarrito(vacio);
+                return;
             }
-        } catch (error) {
-            console.error("Error leyendo carrito de localStorage:", error);
-            setItems([]);
-            itemsRef.current = [];
-        } finally {
-            setCargado(true);
-        }
+
+            try {
+                const guardado = localStorage.getItem(`vetcare_carrito_${uid}`);
+                const parseado = guardado ? JSON.parse(guardado) : [];
+                const siguiente = { uid, items: Array.isArray(parseado) ? parseado : [] };
+                carritoRef.current = siguiente;
+                setCarrito(siguiente);
+            } catch (error) {
+                console.error("Error leyendo carrito de localStorage:", error);
+                const vacioUsuario = { uid, items: [] };
+                carritoRef.current = vacioUsuario;
+                setCarrito(vacioUsuario);
+            }
+        });
+        return () => { activa = false; };
     }, [uid]);
 
     // Persistir en localStorage si hay un usuario autenticado
-    const guardarEnStorage = useCallback((nuevosItems) => {
+    const guardarEnStorage = (nuevosItems) => {
         if (!uid) return;
         try {
             localStorage.setItem(`vetcare_carrito_${uid}`, JSON.stringify(nuevosItems));
         } catch (error) {
             console.error("Error guardando carrito en localStorage:", error);
         }
-    }, [uid]);
+    };
 
     // Agregar producto al carrito respetando stock y límite de 20 unidades
-    const agregar = useCallback((producto, cantidad = 1) => {
-        if (!producto || !producto.id) return;
+    const agregar = (producto, cantidad = 1) => {
+        if (!uid || !cargado || !producto || !producto.id) return;
 
         const stockDisponible = Number(producto.stock) || 0;
         const tope = Math.min(stockDisponible, LIMITE_MAXIMO_UNIDADES);
         if (tope <= 0) return;
 
-        setItems((prevItems) => {
+        setCarrito((prev) => {
+            const prevItems = prev.uid === uid ? prev.items : [];
             const index = prevItems.findIndex((it) => it.productoId === producto.id);
             let actualizados;
 
@@ -98,31 +90,37 @@ export function useCarrito() {
                 ];
             }
 
-            itemsRef.current = actualizados;
             guardarEnStorage(actualizados);
-            return actualizados;
+            const siguiente = { uid, items: actualizados };
+            carritoRef.current = siguiente;
+            return siguiente;
         });
-    }, [guardarEnStorage]);
+    };
 
     // Quitar producto del carrito
-    const quitar = useCallback((productoId) => {
-        setItems((prevItems) => {
+    const quitar = (productoId) => {
+        if (!uid || !cargado) return;
+        setCarrito((prev) => {
+            const prevItems = prev.uid === uid ? prev.items : [];
             const filtrados = prevItems.filter((it) => it.productoId !== productoId);
-            itemsRef.current = filtrados;
             guardarEnStorage(filtrados);
-            return filtrados;
+            const siguiente = { uid, items: filtrados };
+            carritoRef.current = siguiente;
+            return siguiente;
         });
-    }, [guardarEnStorage]);
+    };
 
     // Cambiar la cantidad de un producto específico
-    const cambiarCantidad = useCallback((productoId, nuevaCantidad) => {
+    const cambiarCantidad = (productoId, nuevaCantidad) => {
+        if (!uid || !cargado) return;
         const cant = Number(nuevaCantidad);
         if (cant <= 0) {
             quitar(productoId);
             return;
         }
 
-        setItems((prevItems) => {
+        setCarrito((prev) => {
+            const prevItems = prev.uid === uid ? prev.items : [];
             const actualizados = prevItems.map((it) => {
                 if (it.productoId !== productoId) return it;
                 const tope = Math.min(Number(it.stock) || 0, LIMITE_MAXIMO_UNIDADES);
@@ -130,23 +128,27 @@ export function useCarrito() {
                 return { ...it, cantidad: ajustada };
             });
 
-            itemsRef.current = actualizados;
             guardarEnStorage(actualizados);
-            return actualizados;
+            const siguiente = { uid, items: actualizados };
+            carritoRef.current = siguiente;
+            return siguiente;
         });
-    }, [quitar, guardarEnStorage]);
+    };
 
     // Vaciar todo el carrito
-    const vaciar = useCallback(() => {
-        setItems([]);
-        itemsRef.current = [];
+    const vaciar = () => {
+        if (!uid || !cargado) return;
+        const vacio = { uid, items: [] };
+        carritoRef.current = vacio;
+        setCarrito(vacio);
         guardarEnStorage([]);
-    }, [guardarEnStorage]);
+    };
 
     // Sincronizar items del carrito con los productos del catálogo
-    const sincronizarConCatalogo = useCallback((catalogo = []) => {
+    const sincronizarConCatalogo = (catalogo = []) => {
         if (!Array.isArray(catalogo)) return 0;
-        const actualItems = itemsRef.current;
+        if (!uid || !cargado || carritoRef.current.uid !== uid) return 0;
+        const actualItems = carritoRef.current.items;
         if (!actualItems || actualItems.length === 0) return 0;
 
         const mapaCatalogo = new Map(catalogo.map((p) => [p.id, p]));
@@ -191,13 +193,14 @@ export function useCarrito() {
         }
 
         if (cambios > 0) {
-            itemsRef.current = actualizados;
-            setItems(actualizados);
+            const siguiente = { uid, items: actualizados };
+            carritoRef.current = siguiente;
+            setCarrito(siguiente);
             guardarEnStorage(actualizados);
         }
 
         return cambios;
-    }, [guardarEnStorage]);
+    };
 
     // Cálculo del importe total acumulado
     const total = items.reduce(

@@ -86,6 +86,7 @@ export const eliminar = async (id) => {
 };*/
 
 import * as firestore from "./firestore.service.js";
+import db from "../config/firebase.js";
 const COLECCION = "historiales";
 
 
@@ -100,11 +101,34 @@ export const obtenerPorId = (id) =>
 export const obtenerPorMascota = (mascotaId) =>
     firestore.obtenerPorCampo(COLECCION, "mascotaId", mascotaId);
 
-export const crear = (datos) =>
-    firestore.crear(COLECCION, datos);
+export const crear = (datos) => db.runTransaction(async (transaction) => {
+    const mascotaRef = db.collection("mascotas").doc(datos.mascotaId);
+    const mascota = await transaction.get(mascotaRef);
+    if (!mascota.exists) throw new Error("MASCOTA_NO_ENCONTRADA");
+    if (mascota.data().archivada === true) throw new Error("MASCOTA_ARCHIVADA");
 
-export const actualizar = (id, datos) =>
-    firestore.actualizar(COLECCION, id, datos);
+    const historialRef = db.collection(COLECCION).doc();
+    const ahora = new Date().toISOString();
+    const historial = { ...datos, createdAt: ahora, updatedAt: ahora };
+    transaction.create(historialRef, historial);
+    return { id: historialRef.id, ...historial };
+});
+
+export const actualizar = (id, datos) => db.runTransaction(async (transaction) => {
+    const historialRef = db.collection(COLECCION).doc(id);
+    const historialDoc = await transaction.get(historialRef);
+    if (!historialDoc.exists) return null;
+
+    if (datos.mascotaId && datos.mascotaId !== historialDoc.data().mascotaId) {
+        const mascota = await transaction.get(db.collection("mascotas").doc(datos.mascotaId));
+        if (!mascota.exists) throw new Error("MASCOTA_NO_ENCONTRADA");
+        if (mascota.data().archivada === true) throw new Error("MASCOTA_ARCHIVADA");
+    }
+
+    const actualizacion = { ...datos, updatedAt: new Date().toISOString() };
+    transaction.update(historialRef, actualizacion);
+    return { id, ...historialDoc.data(), ...actualizacion };
+});
 
 export const eliminar = (id) =>
     firestore.eliminar(COLECCION, id);

@@ -49,7 +49,10 @@ export const actualizarEstadoPedido = async (req, res) => {
             ? (motivoCancelacion || "Cancelado por la clínica")
             : null;
 
-        const resultado = await cambiarEstadoService(id, estado, metodoPago, motivo);
+        const resultado = await cambiarEstadoService(id, estado, metodoPago, motivo, {
+            uid: req.user?.uid || null,
+            role: req.userRole || null,
+        });
 
         let facturaEnviada;
         let facturaMotivo;

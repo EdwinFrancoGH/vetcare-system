@@ -18,6 +18,7 @@ import { API_URL } from '@/config/api';
 import { listarMascotas, obtenerVacunasMascota } from '@/features/mascotas/services/mascotas.service';
 import { listarCitasDeMascota } from '@/features/citas/services/citas.service';
 import { obtenerMisPedidos } from '@/features/compras/services/compras.service';
+import { esRolRevisorPagos } from '@/features/pagos-citas/utils/pagos-admin';
 
 const colors = Colors.light;
 
@@ -32,10 +33,13 @@ export default function HomeScreen() {
   const [comprasFrecuentes, setComprasFrecuentes] = useState<ProductoFrecuente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [rolUsuario, setRolUsuario] = useState('');
 
   const cargarInicio = useCallback(async () => {
     const usuario = auth.currentUser;
     if (!usuario) {
+      setRolUsuario('');
+      setComprasFrecuentes([]);
       setError('No hay una sesión activa.');
       setLoading(false);
       return;
@@ -43,20 +47,24 @@ export default function HomeScreen() {
 
     const nombreFallback = usuario.displayName?.trim() || usuario.email?.split('@')[0] || 'Cliente';
     setNombreUsuario(nombreFallback);
+    setComprasFrecuentes([]);
     setLoading(true);
     setError('');
+    setRolUsuario('');
 
     try {
       const token = await usuario.getIdToken();
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-      const [perfilResponse, mascotasResponse, pedidosResponse] = await Promise.all([
+      const [perfilResponse, mascotasResponse] = await Promise.all([
         fetch(`${API_URL}/api/users/profile`, { headers }),
         listarMascotas({ headers }),
-        obtenerMisPedidos({ headers }).catch(() => null),
       ]);
 
+      let role = '';
       if (perfilResponse.ok) {
         const perfil = await perfilResponse.json();
+        role = perfil?.user?.role || '';
+        setRolUsuario(role);
         const nombrePerfil = perfil?.user?.name?.trim();
         if (nombrePerfil) setNombreUsuario(nombrePerfil);
         const foto = perfil?.user?.photoURL || usuario.photoURL;
@@ -73,27 +81,27 @@ export default function HomeScreen() {
       const listaMascotas: Mascota[] = Array.isArray(mascotasData.data) ? mascotasData.data : [];
       setMascotas(listaMascotas);
 
-      if (pedidosResponse?.ok) {
-        const pedidosData = await pedidosResponse.json();
-        setComprasFrecuentes(calcularComprasFrecuentes(pedidosData.data));
-      } else {
-        setComprasFrecuentes([]);
+      if (role === 'Cliente') {
+        const pedidosResponse = await obtenerMisPedidos().catch(() => null);
+        setComprasFrecuentes(Array.isArray(pedidosResponse) ? calcularComprasFrecuentes(pedidosResponse) : []);
       }
 
-      const [citasResultados, vacunasResultados] = await Promise.all([
-        Promise.allSettled(listaMascotas.map(async (mascota) => {
+      const citasResultados = role === 'Cliente'
+        ? await Promise.allSettled(listaMascotas.map(async (mascota) => {
           const response = await listarCitasDeMascota(mascota.id, { headers });
           const data = await response.json();
           if (!response.ok) throw new Error(data.message || `No se pudieron cargar las citas de ${mascota.nombre}.`);
           return (Array.isArray(data.data) ? data.data : []).map((cita: Cita) => ({ ...cita, mascotaNombre: mascota.nombre }));
-        })),
-        Promise.allSettled(listaMascotas.map(async (mascota) => {
+        }))
+        : [];
+      const vacunasResultados: PromiseSettledResult<VacunaPendiente[]>[] = role === 'Recepcionista'
+        ? []
+        : await Promise.allSettled(listaMascotas.map(async (mascota) => {
           const response = await obtenerVacunasMascota(mascota.id, { headers });
           const data = await response.json();
           if (!response.ok) throw new Error(data.mensaje || data.message || `No se pudieron cargar las vacunas de ${mascota.nombre}.`);
           return (Array.isArray(data.data) ? data.data : []).map((vacuna: VacunaPendiente) => ({ ...vacuna, mascotaNombre: mascota.nombre }));
-        })),
-      ]);
+        }));
       const citasPorMascota = citasResultados.filter((resultado) => resultado.status === 'fulfilled').map((resultado) => resultado.value);
       const vacunasPorMascota = vacunasResultados.filter((resultado) => resultado.status === 'fulfilled').map((resultado) => resultado.value);
 
@@ -290,6 +298,11 @@ export default function HomeScreen() {
           <Pressable style={styles.navItem} onPress={() => router.push('/tienda')} hitSlop={12}>
             <Ionicons name="bag-handle-outline" size={21} color="#9CA3AF" /><Text style={styles.navText}>Tienda</Text>
           </Pressable>
+          {esRolRevisorPagos(rolUsuario) ? (
+            <Pressable style={styles.navItem} onPress={() => router.push('/pagos-citas' as never)} hitSlop={12}>
+              <Ionicons name="card-outline" size={21} color="#9CA3AF" /><Text style={styles.navText}>Pagos</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
       </SafeAreaView>
