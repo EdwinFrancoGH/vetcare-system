@@ -15,7 +15,11 @@ export const getProfile = async (req, res) => {
         }
 
         res.status(200).json({
-            user: { uid, ...userDoc.data() }
+            user: { 
+                uid, 
+                ...userDoc.data(),
+                emailVerified: req.user.email_verified === true
+            }
         });
     } catch (error) {
         console.error('Error al obtener el perfil:', error);

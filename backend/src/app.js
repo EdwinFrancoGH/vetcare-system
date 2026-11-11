@@ -21,7 +21,7 @@ import pedidosRoutes from "./routes/pedidos.routes.js";
 import serviciosVeterinariosRoutes from "./routes/servicios-veterinarios.routes.js";
 import pagosRoutes from "./routes/pagos.routes.js";
 
-import { verifyToken, verifyRoles, cargarRol } from "./middlewares/auth.middleware.js";
+import { verifyToken, verifyRoles, cargarRol, requireEmailVerified } from "./middlewares/auth.middleware.js";
 
 const app = express();
 
@@ -55,19 +55,19 @@ const SOLO_PERSONAL_CLINICO = verifyRoles(
 
 // Mascotas: el personal ve todas; un Cliente solo ve y gestiona las
 // suyas (filtradas por propietarioUid en mascotas.controller.js).
-app.use("/api/mascotas", verifyToken, cargarRol, mascotasRoutes);
+app.use("/api/mascotas", verifyToken, cargarRol, requireEmailVerified, mascotasRoutes);
 
 // Historiales: ahora también se permite el acceso al Cliente.
 // El controlador verifica que la mascota pertenezca al Cliente antes
 // de devolver su historial. El personal mantiene acceso normal.
-app.use("/api/historiales", verifyToken, cargarRol, historialRoutes);
+app.use("/api/historiales", verifyToken, cargarRol, requireEmailVerified, historialRoutes);
 
 // Vacunas: ahora también se permite el acceso al Cliente.
 // El controlador verifica que la mascota asociada pertenezca al Cliente
 // antes de devolver sus vacunas. El personal mantiene acceso normal.
-app.use("/api/vacunas", verifyToken, cargarRol, vacunasRoutes);
+app.use("/api/vacunas", verifyToken, cargarRol, requireEmailVerified, vacunasRoutes);
 
-app.use("/api/citas", verifyToken, cargarRol, citasRoutes);
+app.use("/api/citas", verifyToken, cargarRol, requireEmailVerified, citasRoutes);
 app.use("/api/horarios", verifyToken, horariosRoutes);
 
 // clientes.routes.js y users.routes.js ya aplican verifyToken (y
@@ -88,7 +88,7 @@ app.use("/api/productos", verifyToken, SOLO_ADMINISTRACION, productosRoutes);
 app.use("/api/inventario", verifyToken, SOLO_ADMINISTRACION, inventarioRoutes);
 app.use("/api/ventas", verifyToken, SOLO_ADMINISTRACION, ventasRoutes);
 app.use("/api/reportes", verifyToken, SOLO_ADMINISTRACION, reportesRoutes);
-app.use("/api/tienda", verifyToken, cargarRol, tiendaRoutes);
+app.use("/api/tienda", verifyToken, cargarRol, requireEmailVerified, tiendaRoutes);
 app.use("/api/pedidos", verifyToken, verifyRoles("Administrador", "Recepcionista"), pedidosRoutes);
 app.use("/api/servicios-veterinarios", verifyToken, cargarRol, serviciosVeterinariosRoutes);
 app.use("/api/pagos", verifyToken, pagosRoutes);

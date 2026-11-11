@@ -4,71 +4,55 @@ const ROLES_VALIDOS = ['Administrador', 'Recepcionista', 'Veterinario', 'Cliente
 
 export const syncUser = async (req, res) => {
     try {
-        const { uid } = req.user;
-        const email = typeof req.user.email === 'string' ? req.user.email.trim() : '';
-        const emailNormalized = email.toLowerCase();
-        const nombreSolicitado = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-        const name = nombreSolicitado || req.user.name || '';
+        // En este punto, req.user viene del middleware verifyToken
+        const { uid, email } = req.user;
+        const { name } = req.body; // El frontend puede enviar datos extras en el body
+        const emailVerified = req.user.email_verified === true;
+
+        // Referencia al documento del usuario en la colección 'usuarios'
         const userRef = db.collection('usuarios').doc(uid);
-        const emailVerificado = req.user.email_verified === true;
+        const userDoc = await userRef.get();
 
-        const resultado = await db.runTransaction(async (transaction) => {
-            const userDoc = await transaction.get(userRef);
-            const existente = userDoc.exists ? userDoc.data() : {};
-            const rolExistente = ROLES_VALIDOS.includes(existente.role) ? existente.role : 'Cliente';
-            let clientesCoincidentes = [];
-
-            // Solo un correo verificado puede vincular una ficha de cliente
-            // creada previamente por recepción. Nunca se cambia un UID ya
-            // asociado a otra cuenta.
-            if (emailVerificado && emailNormalized && rolExistente === 'Cliente') {
-                const clientesRef = db.collection('clientes');
-                const vinculados = await transaction.get(clientesRef.where('uid', '==', uid));
-                clientesCoincidentes = vinculados.docs;
-
-                if (clientesCoincidentes.length === 0) {
-                    const porCorreoNormalizado = await transaction.get(
-                        clientesRef.where('correoNormalized', '==', emailNormalized)
-                    );
-                    clientesCoincidentes = porCorreoNormalizado.docs;
-
-                    if (clientesCoincidentes.length === 0) {
-                        const porCorreoLegacy = await transaction.get(
-                            clientesRef.where('correo', '==', email)
-                        );
-                        clientesCoincidentes = porCorreoLegacy.docs;
-                    }
-                }
-            }
-
-            const datosUsuario = {
-                uid,
-                email,
-                emailNormalized,
-                emailVerified: emailVerificado,
-                name: name || existente.name || '',
-                role: userDoc.exists ? rolExistente : 'Cliente',
-                status: existente.status || 'Active',
-                createdAt: existente.createdAt || new Date().toISOString(),
+        if (userDoc.exists) {
+            // Actualizamos emailVerified en Firestore si cambió tras la verificación
+            const updates = {
+                emailVerified,
                 updatedAt: new Date().toISOString()
             };
 
-            let clienteVinculado = null;
-            if (clientesCoincidentes.length === 1) {
-                const clienteDoc = clientesCoincidentes[0];
-                const cliente = clienteDoc.data();
-                if (!cliente.uid || cliente.uid === uid) {
-                    transaction.update(clienteDoc.ref, {
-                        uid,
-                        correoNormalized: emailNormalized,
-                        updatedAt: new Date().toISOString()
-                    });
-                    clienteVinculado = clienteDoc.id;
-                }
+            if (name && !userDoc.data().name) {
+                updates.name = name;
             }
 
-            transaction.set(userRef, datosUsuario, { merge: true });
-            return { user: datosUsuario, clienteId: clienteVinculado };
+            await userRef.update(updates);
+
+            return res.status(200).json({ 
+                message: 'El usuario ya existe en Firestore',
+                user: { ...userDoc.data(), ...updates }
+            });
+        }
+
+        // Si es la primera vez (registro), lo creamos con el rol por defecto.
+        // Cualquiera que se auto-registre desde /register entra como
+        // "Cliente" (dueño de mascota). Los roles de staff (Administrador,
+        // Recepcionista, Veterinario) solo los puede asignar un
+        // Administrador ya existente, desde /usuarios (ver
+        // users.controller.js -> createUser / updateUserRole).
+        const newUserData = {
+            uid,
+            email,
+            name: name || '',
+            role: 'Cliente', // Rol por defecto
+            emailVerified,
+            createdAt: new Date().toISOString(),
+            status: 'Active'
+        };
+
+        await userRef.set(newUserData);
+
+        return res.status(201).json({ 
+            message: 'Usuario sincronizado correctamente en Firestore',
+            user: newUserData
         });
 
         return res.status(200).json({

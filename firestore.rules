@@ -1,0 +1,195 @@
+rules_version = '2';
+
+/**
+ * REGLAS DE SEGURIDAD DE CLOUD FIRESTORE - VETCARE SYSTEM
+ * 
+ * Este archivo implementa el modelo de Control de Acceso Basado en Roles (RBAC)
+ * y la validación de verificación de identidad para el sistema VetCare.
+ * 
+ * Roles soportados:
+ * - Administrador: Acceso total al sistema y gestión de roles.
+ * - Veterinario: Acceso a fichas clínicas, diagnósticos y vacunas.
+ * - Recepcionista: Acceso a caja, clientes, citas, inventario y ventas.
+ * - Cliente: Acceso restringido exclusivamente a sus propios datos, mascotas y citas.
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================================
+    // FUNCIONES AUXILIARES GLOBALES DE SEGURIDAD
+    // ========================================================
+    
+    // Verifica si la solicitud proviene de un usuario autenticado en Firebase
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Verifica si el usuario ha confirmado su correo electrónico
+    function isEmailVerified() {
+      return isAuthenticated() && request.auth.token.email_verified == true;
+    }
+    
+    // Obtiene los datos del documento de perfil del usuario
+    function getUserData() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    
+    // Obtiene el rol asignado en Firestore
+    function getUserRole() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        ? getUserData().role
+        : null;
+    }
+    
+    // Funciones de validación de roles específicos
+    function isAdmin() {
+      return getUserRole() == 'Administrador';
+    }
+    
+    function isVeterinario() {
+      return getUserRole() == 'Veterinario';
+    }
+    
+    function isRecepcionista() {
+      return getUserRole() == 'Recepcionista';
+    }
+    
+    function isCliente() {
+      return getUserRole() == 'Cliente';
+    }
+    
+    // Agrupación: Personal con acceso operativo (Administrador, Veterinario, Recepcionista)
+    function isPersonalClinico() {
+      return isAdmin() || isVeterinario() || isRecepcionista();
+    }
+    
+    // Agrupación: Personal médico facultado para expedientes clínicos
+    function isPersonalMedico() {
+      return isAdmin() || isVeterinario();
+    }
+    
+    // Agrupación: Personal administrativo con facultades sobre inventario, ventas y caja
+    function isPersonalAdministrativo() {
+      return isAdmin() || isRecepcionista();
+    }
+    
+    // Verifica si el usuario es el propietario del recurso por su UID
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // ========================================================
+    // REGLAS POR COLECCIÓN
+    // ========================================================
+
+    // 1. Colección: usuarios (Perfiles del sistema)
+    // - Un usuario puede leer su propio perfil; el personal puede ver perfiles.
+    // - Nadie puede auto-asignarse un rol diferente a 'Cliente' al crearse.
+    // - Solo un Administrador puede cambiar el rol de un usuario (evita escalamiento de privilegios).
+    match /usuarios/{userId} {
+      allow read: if isOwner(userId) || isPersonalClinico();
+      allow create: if isOwner(userId) 
+                    && (!('role' in request.resource.data) || request.resource.data.role == 'Cliente');
+      allow update: if isAdmin() || (
+        isOwner(userId) 
+        && request.resource.data.role == resource.data.role // Protección contra auto-escalamiento
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Colección: clientes (Fichas de clientes de la clínica)
+    match /clientes/{clienteId} {
+      allow read: if isPersonalClinico() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+      allow write: if isPersonalAdministrativo();
+    }
+
+    // 3. Colección: mascotas (Pacientes veterinarios)
+    // - Clientes solo leen y gestionan sus propias mascotas.
+    // - El personal clínico puede consultar todos los pacientes.
+    match /mascotas/{mascotaId} {
+      allow read: if isPersonalClinico() || (isAuthenticated() && resource.data.propietarioUid == request.auth.uid);
+      allow create: if isPersonalClinico() || (isAuthenticated() && request.resource.data.propietarioUid == request.auth.uid);
+      allow update: if isPersonalClinico() || (isAuthenticated() && resource.data.propietarioUid == request.auth.uid);
+      allow delete: if isPersonalClinico();
+    }
+
+    // 4. Colección: citas (Agenda médica)
+    // - Para reservar una cita, un cliente debe tener su correo verificado.
+    match /citas/{citaId} {
+      allow read: if isPersonalClinico() || (isAuthenticated() && resource.data.clienteUid == request.auth.uid);
+      allow create: if isPersonalClinico() || (
+        isAuthenticated() 
+        && isEmailVerified() 
+        && request.resource.data.clienteUid == request.auth.uid
+      );
+      allow update: if isPersonalClinico() || (isAuthenticated() && resource.data.clienteUid == request.auth.uid);
+      allow delete: if isPersonalClinico();
+    }
+
+    // 5. Colección: horarios (Disponibilidad de atención)
+    match /horarios/{horarioId} {
+      allow read: if isAuthenticated();
+      allow write: if isPersonalAdministrativo();
+    }
+
+    // 6. Colección: historial_clinico (Expedientes y consultas)
+    // - Solo Médicos Veterinarios y Administradores pueden asentar diagnósticos y tratamientos.
+    match /historial_clinico/{historialId} {
+      allow read: if isPersonalClinico() || (isAuthenticated() && resource.data.propietarioUid == request.auth.uid);
+      allow write: if isPersonalMedico();
+    }
+
+    // 7. Colección: vacunas (Registro de inmunizaciones)
+    match /vacunas/{vacunaId} {
+      allow read: if isPersonalClinico() || (isAuthenticated() && resource.data.propietarioUid == request.auth.uid);
+      allow write: if isPersonalMedico();
+    }
+
+    // 8. Colección: servicios_veterinarios (Catálogo clínico oficial)
+    match /servicios_veterinarios/{servicioId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 9. Colección: productos e inventario (Tienda y suministros)
+    match /productos/{productoId} {
+      allow read: if isAuthenticated();
+      allow write: if isPersonalAdministrativo();
+    }
+    
+    match /inventario/{inventarioId} {
+      allow read, write: if isPersonalAdministrativo();
+    }
+
+    // 10. Colección: ventas y reportes contables
+    match /ventas/{ventaId} {
+      allow read, write: if isPersonalAdministrativo();
+    }
+
+    match /reportes/{reporteId} {
+      allow read, write: if isPersonalAdministrativo();
+    }
+
+    // 11. Colección: pedidos (Compras en línea)
+    // - Un cliente con correo verificado puede crear pedidos para su propio UID.
+    match /pedidos/{pedidoId} {
+      allow read: if isPersonalAdministrativo() || (isAuthenticated() && resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && isEmailVerified() && request.resource.data.uid == request.auth.uid;
+      allow update: if isPersonalAdministrativo() || (
+        isAuthenticated() 
+        && resource.data.uid == request.auth.uid 
+        && request.resource.data.estado == 'cancelado'
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 12. Colección: pagos_citas (Reportes de pago de consultas)
+    match /pagos_citas/{pagoId} {
+      allow read: if isPersonalAdministrativo() || (isAuthenticated() && resource.data.clienteUid == request.auth.uid);
+      allow create: if isAuthenticated() && isEmailVerified() && request.resource.data.clienteUid == request.auth.uid;
+      allow update, delete: if isPersonalAdministrativo();
+    }
+  }
+}
+
