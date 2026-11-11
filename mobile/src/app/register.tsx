@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,7 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [registroExitoso, setRegistroExitoso] = useState(false);
 
   const registrar = async () => {
     setError('');
@@ -40,7 +41,10 @@ export default function RegisterScreen() {
       let data: any = {};
       try { data = JSON.parse(raw); } catch { throw new Error('El servidor no respondió correctamente.'); }
       if (!response.ok) throw new Error(data.message || data.error || 'No se pudo completar el registro.');
-      router.replace('/home');
+
+      // Cerramos la sesión temporal para que el usuario confirme antes de entrar
+      await signOut(auth);
+      setRegistroExitoso(true);
     } catch (err: any) {
       const code = err?.code;
       if (code === 'auth/email-already-in-use') setError('Este correo ya está registrado.');
@@ -49,6 +53,43 @@ export default function RegisterScreen() {
       else setError(err?.message || 'Ocurrió un error. Inténtalo de nuevo.');
     } finally { setCargando(false); }
   };
+
+  if (registroExitoso) {
+    return (
+      <VetCareBackground>
+        <SafeAreaView style={styles.safe}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <View style={styles.card}>
+              <View style={styles.brand}>
+                <View style={[styles.logoCircle, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="mail-unread" size={36} color="#16A34A" />
+                </View>
+                <Text style={[styles.brandTitle, { color: '#16A34A', fontSize: 26 }]}>¡Revisa tu correo!</Text>
+              </View>
+
+              <Text style={styles.title}>Confirma tu cuenta</Text>
+              <Text style={styles.description}>
+                Te hemos enviado un correo de verificación a:
+                {'\n'}
+                <Text style={{ fontWeight: '700', color: '#111827' }}>{email.trim()}</Text>
+              </Text>
+
+              <Text style={[styles.description, { fontSize: 13, color: '#6B7280', marginTop: 8 }]}>
+                Por seguridad, debes hacer clic en el enlace que recibiste antes de poder ingresar al sistema.
+              </Text>
+
+              <Pressable
+                style={[styles.primaryButton, { marginTop: 24 }]}
+                onPress={() => router.replace('/')}
+              >
+                <Text style={styles.primaryText}>Ir a Iniciar Sesión</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </VetCareBackground>
+    );
+  }
 
   return <VetCareBackground><SafeAreaView style={styles.safe}>
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
