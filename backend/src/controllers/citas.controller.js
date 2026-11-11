@@ -3,9 +3,9 @@ import {
     obtenerPorId,
     obtenerPorMascota,
     obtenerPorVeterinario,
-    crear,
-    actualizar,
-    eliminar
+    crearSiDisponible,
+    reprogramarSiDisponible,
+    actualizarSiDisponible,
 } from "../services/citas.service.js";
 
 import {
@@ -16,7 +16,7 @@ import {
 import { obtenerPorId as obtenerMascotaPorId } from "../services/mascotas.service.js";
 
 import { validarCita } from "../validators/cita.validator.js";
-import { generarDisponibilidad, esHorarioValido, sumarDiasISO } from "../utils/disponibilidad.js";
+import { generarDisponibilidad, sumarDiasISO } from "../utils/disponibilidad.js";
 
 // Ventana de tiempo por defecto que se muestra como disponible cuando el
 // cliente no indica "desde"/"hasta" (2 semanas hacia adelante).
@@ -318,7 +318,8 @@ export const crearCita = async (req, res) => {
         if (resultado.error) {
             return res.status(resultado.status).json({
                 ok: false,
-                message: resultado.error
+                message: resultado.error,
+                ...(resultado.codigo ? { code: resultado.codigo } : {})
             });
         }
 
@@ -379,12 +380,17 @@ export const reservarCita = async (req, res) => {
             datos.clienteUid = req.user.uid;
         }
 
-        const resultado = await agendarCita(datos, "reservada");
+        const resultado = await agendarCita(
+            datos,
+            "reservada",
+            req.userRole === "Cliente" ? req.user.uid : null
+        );
 
         if (resultado.error) {
             return res.status(resultado.status).json({
                 ok: false,
-                message: resultado.error
+                message: resultado.error,
+                ...(resultado.codigo ? { code: resultado.codigo } : {})
             });
         }
 
@@ -406,39 +412,49 @@ export const reservarCita = async (req, res) => {
 // Lógica compartida por crearCita y reservarCita: valida que el horario
 // pedido exista dentro del horario semanal del veterinario y que nadie
 // más lo haya tomado todavía, y crea la cita.
-async function agendarCita(datos, estadoInicial) {
+async function agendarCita(datos, estadoInicial, propietarioUid = null) {
+    const resultado = await crearSiDisponible({
+        ...datos,
+        estado: estadoInicial,
+    }, propietarioUid);
 
-    const { veterinario, fecha, hora } = datos;
-
-    const horario = await obtenerHorarioDeVeterinario(veterinario);
-
-    if (!horario) {
-        return { error: "Ese veterinario no tiene un horario de atención configurado.", status: 400 };
+    if (resultado.error === "MASCOTA_NO_ENCONTRADA") {
+        return { error: "La mascota asociada no existe.", status: 404 };
     }
-
-    if (!esHorarioValido({ horario, fecha, hora })) {
-        return { error: "Ese horario no está dentro del horario de atención del veterinario.", status: 400 };
+    if (resultado.error === "MASCOTA_ARCHIVADA") {
+        return { error: "No se pueden agendar citas para una mascota archivada.", status: 409 };
     }
-
-    const citasDelVeterinario = await obtenerPorVeterinario(veterinario);
-
-    const yaOcupado = citasDelVeterinario.some((cita) =>
-        cita.fecha === fecha &&
-        cita.hora === hora &&
-        ESTADOS_QUE_OCUPAN_HORARIO.includes(cita.estado)
-    );
-
-    if (yaOcupado) {
+    if (resultado.error === "MASCOTA_NO_PROPIA") {
+        return { error: "Solo puedes reservar citas para tus propias mascotas.", status: 403 };
+    }
+    if (resultado.error === "CITA_HORARIO_OCUPADO") {
         return { error: "Ese horario ya fue reservado por otra persona.", status: 409 };
     }
+    if (resultado.error === "HORARIO_NO_ENCONTRADO") {
+        return { error: "Ese veterinario no tiene un horario de atención configurado.", status: 400 };
+    }
+    if (resultado.error === "HORARIO_INVALIDO") {
+        return { error: "Ese horario no está dentro del horario de atención del veterinario.", status: 400 };
+    }
+    if (resultado.error === "SERVICIO_REQUERIDO") {
+        return { error: "Selecciona un servicio veterinario para la cita.", status: 400 };
+    }
+    if (resultado.error === "SERVICIO_NO_DISPONIBLE") {
+        return {
+            error: "El servicio seleccionado ya no está disponible. Actualiza el catálogo y elige otro servicio.",
+            status: 409,
+            codigo: "SERVICIO_NO_DISPONIBLE"
+        };
+    }
+    if (resultado.error === "SERVICIO_INVALIDO") {
+        return {
+            error: "El servicio seleccionado no tiene una tarifa válida. Contacta con la clínica.",
+            status: 409,
+            codigo: "SERVICIO_NO_DISPONIBLE"
+        };
+    }
 
-    const cita = await crear({
-        ...datos,
-        duracionMinutos: horario.duracionCitaMinutos || 60,
-        estado: estadoInicial,
-    });
-
-    return { cita };
+    return { cita: resultado.cita };
 
 }
 
@@ -447,16 +463,51 @@ export const actualizarCita = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const cita = await obtenerPorId(id);
+        const existente = await obtenerPorId(id);
+        if (!existente) {
+            return res.status(404).json({ ok: false, message: "Cita no encontrada." });
+        }
+        const errorValidacion = validarCita({ ...existente, ...req.body });
+        if (errorValidacion) {
+            return res.status(400).json({ ok: false, message: errorValidacion });
+        }
+        const citaActualizada = await actualizarSiDisponible(id, req.body);
 
-        if (!cita) {
+        if (citaActualizada === undefined) {
             return res.status(404).json({
                 ok: false,
                 message: "Cita no encontrada."
             });
         }
 
-        const citaActualizada = await actualizar(id, req.body);
+        if (citaActualizada === null) {
+            return res.status(409).json({
+                ok: false,
+                message: "Ese horario ya fue reservado por otra persona."
+            });
+        }
+
+        if (citaActualizada.error === "TRANSICION_INVALIDA") {
+            return res.status(400).json({
+                ok: false,
+                message: "La transición de estado de la cita no es válida."
+            });
+        }
+        if (citaActualizada.error === "CAMPOS_INVALIDOS") {
+            return res.status(400).json({ ok: false, message: "La solicitud contiene campos no permitidos." });
+        }
+        if (citaActualizada.error === "REPROGRAMACION_REQUERIDA") {
+            return res.status(400).json({ ok: false, message: "Utiliza la operación de reprogramación para cambiar fecha, hora o veterinario." });
+        }
+        if (citaActualizada.error === "MASCOTA_NO_ENCONTRADA") {
+            return res.status(404).json({ ok: false, message: "La mascota asociada no existe." });
+        }
+        if (citaActualizada.error === "MASCOTA_ARCHIVADA") {
+            return res.status(409).json({ ok: false, message: "No se puede cambiar la cita a una mascota archivada." });
+        }
+        if (citaActualizada.error === "PAGO_IMPIDE_CANCELACION") {
+            return res.status(409).json({ ok: false, message: "La cita tiene un pago reportado, en revisión o aprobado. Resuelve el estado financiero antes de cancelarla." });
+        }
 
         res.status(200).json({
             ok: true,
@@ -470,6 +521,58 @@ export const actualizarCita = async (req, res) => {
             message: "Error al actualizar la cita.",
             error: error.message
         });
+    }
+};
+
+// Reprograma una cita activa como una única transacción, sin liberar la
+// reserva original hasta confirmar que el nuevo horario está disponible.
+export const reprogramarCita = async (req, res) => {
+    try {
+        if (!["Administrador", "Recepcionista", "Veterinario"].includes(req.userRole)) {
+            return res.status(403).json({ ok: false, message: "No tienes permisos para reprogramar citas." });
+        }
+        const { id } = req.params;
+        const datos = req.body || {};
+        const campos = Object.keys(datos);
+        if (campos.length !== 3 || campos.some((campo) => !["veterinario", "fecha", "hora"].includes(campo))) {
+            return res.status(400).json({ ok: false, message: "Indica únicamente veterinario, fecha y hora para reprogramar." });
+        }
+
+        const existente = await obtenerPorId(id);
+        if (!existente) return res.status(404).json({ ok: false, message: "Cita no encontrada." });
+        if (!ESTADOS_QUE_OCUPAN_HORARIO.includes(existente.estado)) {
+            return res.status(409).json({ ok: false, message: "Solo se pueden reprogramar citas reservadas o confirmadas." });
+        }
+        const citaPropuesta = { ...existente, ...datos };
+        const errorValidacion = validarCita(citaPropuesta);
+        if (errorValidacion) return res.status(400).json({ ok: false, message: errorValidacion });
+
+        const hoy = fechaHoyISO();
+        const horaActual = horaActualElSalvador();
+        if (datos.fecha < hoy || (datos.fecha === hoy && datos.hora < horaActual)) {
+            return res.status(400).json({ ok: false, message: "No se puede reprogramar una cita a una fecha u hora pasada." });
+        }
+
+        const resultado = await reprogramarSiDisponible(id, datos);
+        const errores = {
+            CITA_NO_ENCONTRADA: [404, "Cita no encontrada."],
+            ESTADO_NO_REPROGRAMABLE: [409, "Solo se pueden reprogramar citas reservadas o confirmadas."],
+            MASCOTA_NO_ENCONTRADA: [404, "La mascota asociada no existe."],
+            MASCOTA_ARCHIVADA: [409, "No se puede reprogramar una cita de una mascota archivada."],
+            PROPIETARIO_CAMBIADO: [409, "La propiedad actual de la mascota no coincide con la cita."],
+            HORARIO_NO_ENCONTRADO: [400, "Ese veterinario no tiene un horario configurado."],
+            HORARIO_INVALIDO: [400, "El nuevo horario no pertenece a la disponibilidad del veterinario."],
+            CITA_HORARIO_OCUPADO: [409, "El nuevo horario ya está ocupado o se solapa con otra cita."],
+            CAMPOS_INVALIDOS: [400, "La solicitud contiene campos no permitidos."]
+        };
+        if (resultado.error && errores[resultado.error]) {
+            const [status, message] = errores[resultado.error];
+            return res.status(status).json({ ok: false, message });
+        }
+
+        return res.status(200).json({ ok: true, message: "Cita reprogramada correctamente.", data: resultado });
+    } catch (error) {
+        return res.status(500).json({ ok: false, message: "Error al reprogramar la cita.", error: error.message });
     }
 };
 
@@ -507,7 +610,21 @@ export const cancelarCita = async (req, res) => {
             });
         }
 
-        const citaCancelada = await actualizar(id, { estado: "cancelada" });
+        const citaCancelada = await actualizarSiDisponible(id, { estado: "cancelada" });
+
+        if (citaCancelada === undefined) {
+            return res.status(404).json({ ok: false, message: "Cita no encontrada." });
+        }
+
+        if (citaCancelada?.error === "TRANSICION_INVALIDA") {
+            return res.status(400).json({
+                ok: false,
+                message: `No se puede cancelar una cita con estado '${cita.estado}'.`
+            });
+        }
+        if (citaCancelada?.error === "PAGO_IMPIDE_CANCELACION") {
+            return res.status(409).json({ ok: false, message: "La cita tiene un pago reportado, en revisión o aprobado. Resuelve el estado financiero antes de cancelarla." });
+        }
 
         res.status(200).json({
             ok: true,
@@ -524,12 +641,13 @@ export const cancelarCita = async (req, res) => {
     }
 };
 
-// Eliminar una cita (borrado definitivo)
-export const eliminarCita = async (req, res) => {
+// Se mantiene la ruta DELETE por compatibilidad, pero el comportamiento es
+// lógico: nunca se elimina el historial operativo de la cita.
+export const crearControladorEliminarCita = ({ obtenerCita, actualizarCita }) => async (req, res) => {
     try {
         const { id } = req.params;
 
-        const cita = await obtenerPorId(id);
+        const cita = await obtenerCita(id);
 
         if (!cita) {
             return res.status(404).json({
@@ -538,11 +656,18 @@ export const eliminarCita = async (req, res) => {
             });
         }
 
-        await eliminar(id);
+        const resultado = await actualizarCita(id, { estado: "cancelada" });
+        if (resultado?.error === "PAGO_IMPIDE_CANCELACION") {
+            return res.status(409).json({ ok: false, message: "La cita tiene un pago reportado, en revisión o aprobado. Resuelve el estado financiero antes de cancelarla." });
+        }
+        if (resultado?.error === "TRANSICION_INVALIDA") {
+            return res.status(409).json({ ok: false, message: `No se puede cancelar una cita con estado '${cita.estado}'.` });
+        }
 
         res.status(200).json({
             ok: true,
-            message: "Cita eliminada correctamente."
+            message: "La solicitud se conservó como cancelación lógica.",
+            data: resultado
         });
 
     } catch (error) {
@@ -553,3 +678,8 @@ export const eliminarCita = async (req, res) => {
         });
     }
 };
+
+export const eliminarCita = crearControladorEliminarCita({
+    obtenerCita: obtenerPorId,
+    actualizarCita: actualizarSiDisponible
+});

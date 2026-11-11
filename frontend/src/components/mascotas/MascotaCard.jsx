@@ -119,8 +119,8 @@ export default function MascotaCard({ mascota, vacunas = [], onEditar, onElimina
                         <button
                             type="button"
                             onClick={() => onEliminar(mascota.id)}
-                            aria-label="Eliminar mascota"
-                            title="Eliminar mascota"
+                            aria-label="Archivar mascota"
+                            title="Archivar mascota"
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                             <FaTrash className="w-4 h-4" />

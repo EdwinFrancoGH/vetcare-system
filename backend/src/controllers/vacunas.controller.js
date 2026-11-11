@@ -14,13 +14,15 @@ import { obtenerPorId as obtenerMascotaPorId, obtenerPorPropietario } from "../s
 // Obtener todas las vacunas
 export const obtenerVacunas = async (req, res) => {
     try {
-        let vacunas = await obtenerTodas();
+        let vacunas;
 
         // Corrección de seguridad: si es Cliente, solo puede consultar vacunas de sus mascotas
         if (req.userRole === "Cliente") {
             const misMascotas = await obtenerPorPropietario(req.user.uid);
-            const idsMascotas = new Set(misMascotas.map(m => m.id));
-            vacunas = vacunas.filter(v => idsMascotas.has(v.mascotaId));
+            const grupos = await Promise.all(misMascotas.map((mascota) => obtenerPorMascota(mascota.id)));
+            vacunas = grupos.flat();
+        } else {
+            vacunas = await obtenerTodas();
         }
 
         res.json({
@@ -151,6 +153,12 @@ export const crearVacuna = async (req, res) => {
         });
 
     } catch (error) {
+        if (error.message === "MASCOTA_NO_ENCONTRADA") {
+            return res.status(404).json({ ok: false, mensaje: "La mascota asociada no existe." });
+        }
+        if (error.message === "MASCOTA_ARCHIVADA") {
+            return res.status(409).json({ ok: false, mensaje: "No se pueden crear vacunas para una mascota archivada." });
+        }
         res.status(500).json({
             ok: false,
             mensaje: error.message
@@ -188,6 +196,12 @@ export const actualizarVacuna = async (req, res) => {
         });
 
     } catch (error) {
+        if (error.message === "MASCOTA_NO_ENCONTRADA") {
+            return res.status(404).json({ ok: false, mensaje: "La mascota asociada no existe." });
+        }
+        if (error.message === "MASCOTA_ARCHIVADA") {
+            return res.status(409).json({ ok: false, mensaje: "No se puede reasignar la vacuna a una mascota archivada." });
+        }
         res.status(500).json({
             ok: false,
             mensaje: error.message

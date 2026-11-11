@@ -61,23 +61,22 @@ export const verifyAdmin = async (req, res, next) => {
 // lista, para módulos que varios roles de staff pueden usar pero que
 // un "Cliente" no debe ver (clientes, ventas, inventario, reportes,
 // mascotas/historiales/vacunas de TODA la clínica, etc.).
-export const verifyRoles = (...rolesPermitidos) => {
+export const crearVerifyRoles = (obtenerRol) => (...rolesPermitidos) => {
     return async (req, res, next) => {
         try {
             if (!req.user || !req.user.uid) {
                 return res.status(401).json({ error: 'No autorizado', message: 'Usuario no autenticado' });
             }
 
-            const userDoc = await db.collection('usuarios').doc(req.user.uid).get();
-
-            if (!userDoc.exists || !rolesPermitidos.includes(userDoc.data().role)) {
+            const role = await obtenerRol(req.user.uid);
+            if (!role || !rolesPermitidos.includes(role)) {
                 return res.status(403).json({
                     error: 'Prohibido',
                     message: 'No tienes permisos para acceder a este recurso'
                 });
             }
 
-            req.userRole = userDoc.data().role;
+            req.userRole = role;
             next();
         } catch (error) {
             console.error('Error verificando rol del usuario:', error);
@@ -88,6 +87,11 @@ export const verifyRoles = (...rolesPermitidos) => {
         }
     };
 };
+
+export const verifyRoles = crearVerifyRoles(async (uid) => {
+    const userDoc = await db.collection('usuarios').doc(uid).get();
+    return userDoc.exists ? userDoc.data().role : null;
+});
 
 // Carga el rol del usuario (cualquier rol, incluido "Cliente") en
 // req.userRole SIN restringir el acceso. Se usa en módulos que comparten

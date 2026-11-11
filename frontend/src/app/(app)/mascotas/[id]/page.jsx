@@ -35,6 +35,7 @@ function FichaMascotaPage() {
     const { id } = useParams();
     const { userRole } = useAuth();
     const esCliente = userRole === "Cliente";
+    const esRecepcionista = userRole === "Recepcionista";
 
     const [mascota, setMascota] = useState(null);
     const [historiales, setHistoriales] = useState([]);
@@ -44,20 +45,26 @@ function FichaMascotaPage() {
     const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
 
     useEffect(() => {
-        if (id) {
+        if (id && userRole) {
             cargarFicha();
         }
-    }, [id]);
+    }, [id, userRole]);
 
     async function cargarFicha() {
         try {
-            const [respMascota, respHistoriales, respVacunas] = await Promise.all([
-                obtenerMascota(id),
+            const respMascota = await obtenerMascota(id);
+            setMascota(respMascota.data.data);
+
+            if (esRecepcionista) {
+                setHistoriales([]);
+                setVacunas([]);
+                return;
+            }
+
+            const [respHistoriales, respVacunas] = await Promise.all([
                 obtenerHistorialesPorMascota(id),
                 obtenerVacunasPorMascota(id),
             ]);
-
-            setMascota(respMascota.data.data);
 
             const historialOrdenado = [...respHistoriales.data.historiales].sort(
                 (a, b) => new Date(b.fecha) - new Date(a.fecha)
@@ -130,25 +137,30 @@ function FichaMascotaPage() {
             <FichaEncabezado
                 mascota={mascota}
                 esCliente={esCliente}
+                esRecepcionista={esRecepcionista}
                 estadoClinico={estadoClinico}
                 onEditar={() => setMostrarModalEditar(true)}
             />
 
-            <FichaEstadisticas
-                mascota={mascota}
-                resumenClinico={resumenClinicoData}
-                vacunas={vacunas}
-            />
+            {!esRecepcionista && (
+                <FichaEstadisticas
+                    mascota={mascota}
+                    resumenClinico={resumenClinicoData}
+                    vacunas={vacunas}
+                />
+            )}
 
             <FichaContacto mascota={mascota} />
 
-            <FichaPestanas
-                tabActiva={tabActiva}
-                setTabActiva={setTabActiva}
-                totalHistorial={historiales.length}
-                totalVacunas={vacunas.length}
-                tieneAlertas={vencidos.length > 0 || proximos.length > 0}
-            />
+            {!esRecepcionista && (
+                <>
+                    <FichaPestanas
+                        tabActiva={tabActiva}
+                        setTabActiva={setTabActiva}
+                        totalHistorial={historiales.length}
+                        totalVacunas={vacunas.length}
+                        tieneAlertas={vencidos.length > 0 || proximos.length > 0}
+                    />
 
             {tabActiva === "resumen" && (
                 <div className="space-y-6 print:hidden">
@@ -214,11 +226,13 @@ function FichaMascotaPage() {
                 </div>
             )}
 
-            <CarnetVacunas
-                vacunas={vacunas}
-                nombreMascota={mascota.nombre}
-                tabActiva={tabActiva}
-            />
+                    <CarnetVacunas
+                        vacunas={vacunas}
+                        nombreMascota={mascota.nombre}
+                        tabActiva={tabActiva}
+                    />
+                </>
+            )}
 
             {mostrarModalEditar && (
                 <MascotaForm

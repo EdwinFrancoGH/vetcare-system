@@ -1,5 +1,7 @@
 import { db } from '../config/firebase.js';
 
+const ROLES_VALIDOS = ['Administrador', 'Recepcionista', 'Veterinario', 'Cliente'];
+
 export const syncUser = async (req, res) => {
     try {
         // En este punto, req.user viene del middleware verifyToken
@@ -53,11 +55,13 @@ export const syncUser = async (req, res) => {
             user: newUserData
         });
 
+        return res.status(200).json({
+            message: 'Usuario sincronizado correctamente en Firestore',
+            user: resultado.user,
+            ...(resultado.clienteId ? { clienteId: resultado.clienteId } : {})
+        });
     } catch (error) {
         console.error('Error sincronizando usuario:', error);
-        return res.status(500).json({ 
-            error: 'Error interno del servidor',
-            details: error.message 
-        });
+        return res.status(500).json({ error: 'Error interno del servidor' });
     }
 };

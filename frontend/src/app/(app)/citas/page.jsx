@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { useAuth } from "../../../context/AuthContext";
 import DisponibilidadCitas from "../../../components/citas/DisponibilidadCitas";
 import HorarioAtencionForm from "../../../components/citas/HorarioAtencionForm";
 import ProximasConsultas from "../../../components/citas/ProximasConsultas";
 import HistorialCitas from "../../../components/citas/HistorialCitas";
+import PagosCitasCliente from "../../../components/citas/PagosCitasCliente";
 
 // Módulo de Citas con dos vistas:
 // - "Cliente" (dueño de mascota): ve los horarios disponibles (calculados
@@ -26,7 +27,7 @@ import HistorialCitas from "../../../components/citas/HistorialCitas";
 //   personal de recepción coordina la agenda de varios médicos a la vez.
 export default function CitasPage() {
 
-    const { userRole, userData } = useAuth();
+    const { user, userRole, userData } = useAuth();
     const puedeElegirVista = userRole === "Administrador" || userRole === "Recepcionista";
     const vistaForzada = userRole === "Veterinario" ? "medico" : userRole === "Cliente" ? "cliente" : null;
 
@@ -36,17 +37,8 @@ export default function CitasPage() {
     // Si el rol no permite elegir vista, se fuerza (por si el rol tarda
     // en cargar, o cambia). Y si es Veterinario, su propio nombre se usa
     // siempre como filtro: sus citas y su horario, no los de otro médico.
-    useEffect(() => {
-        if (vistaForzada) {
-            setVista(vistaForzada);
-        }
-    }, [vistaForzada]);
-
-    useEffect(() => {
-        if (userRole === "Veterinario") {
-            setFiltroVeterinario(userData?.name || "");
-        }
-    }, [userRole, userData]);
+    const vistaActual = vistaForzada || vista;
+    const filtroActual = userRole === "Veterinario" ? userData?.name || "" : filtroVeterinario;
 
     // Se incrementa cada vez que algo puede haber movido una cita entre
     // "Mis Próximas Consultas" y "Historial de Citas" (nuevo horario
@@ -55,8 +47,8 @@ export default function CitasPage() {
     const [versionCitas, setVersionCitas] = useState(0);
     const refrescarCitas = () => setVersionCitas((n) => n + 1);
 
-    const esVistaMedico = vistaForzada ? vistaForzada === "medico" : vista === "medico";
-    const esVistaCliente = vistaForzada ? vistaForzada === "cliente" : vista === "cliente";
+    const esVistaMedico = vistaActual === "medico";
+    const esVistaCliente = vistaActual === "cliente";
     const esVeterinario = userRole === "Veterinario";
 
     return (
@@ -86,7 +78,7 @@ export default function CitasPage() {
                         <button
                             onClick={() => setVista("cliente")}
                             className={`px-5 py-2 font-medium ${
-                                vista === "cliente"
+                                vistaActual === "cliente"
                                     ? "bg-blue-700 text-white"
                                     : "text-gray-600 hover:bg-gray-100"
                             }`}
@@ -97,7 +89,7 @@ export default function CitasPage() {
                         <button
                             onClick={() => setVista("medico")}
                             className={`px-5 py-2 font-medium ${
-                                vista === "medico"
+                                vistaActual === "medico"
                                     ? "bg-blue-700 text-white"
                                     : "text-gray-600 hover:bg-gray-100"
                             }`}
@@ -111,7 +103,12 @@ export default function CitasPage() {
 
             </div>
 
-            {esVistaCliente && <DisponibilidadCitas />}
+            {esVistaCliente && (
+                <>
+                    <DisponibilidadCitas />
+                    {userRole === "Cliente" && user?.uid && <PagosCitasCliente key={user.uid} uid={user.uid} />}
+                </>
+            )}
 
             {esVistaMedico && (
                 <div>
@@ -122,12 +119,12 @@ export default function CitasPage() {
                         </label>
                         {esVeterinario ? (
                             <span className="border rounded-lg px-3 py-2 text-gray-700 bg-gray-50 flex-1 max-w-xs">
-                                {filtroVeterinario || "Sin nombre configurado en tu perfil"}
+                                {filtroActual || "Sin nombre configurado en tu perfil"}
                             </span>
                         ) : (
                             <input
                                 type="text"
-                                value={filtroVeterinario}
+                                value={filtroActual}
                                 onChange={(e) => setFiltroVeterinario(e.target.value)}
                                 placeholder="Escribe el nombre del médico (ej. Dra. Pérez)"
                                 className="border rounded-lg px-3 py-2 text-gray-600 flex-1 max-w-xs"
@@ -136,18 +133,18 @@ export default function CitasPage() {
                     </div>
 
                     <HorarioAtencionForm
-                        veterinario={filtroVeterinario}
+                        veterinario={filtroActual}
                         onSuccess={refrescarCitas}
                     />
 
                     <ProximasConsultas
                         key={versionCitas}
-                        veterinario={filtroVeterinario}
+                        veterinario={filtroActual}
                         onCambio={refrescarCitas}
                     />
 
                     <HistorialCitas
-                        veterinario={filtroVeterinario}
+                        veterinario={filtroActual}
                         refrescar={versionCitas}
                     />
 

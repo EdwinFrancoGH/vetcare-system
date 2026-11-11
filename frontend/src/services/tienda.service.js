@@ -4,9 +4,15 @@ import api from "./api";
 export const obtenerProductos = () =>
     api.get("/tienda/productos");
 
+// Obtener el detalle de un producto activo.
+export const obtenerProductoDetalle = (id) =>
+    api.get(`/tienda/productos/${encodeURIComponent(id)}`);
+
 // Crear un nuevo pedido
-export const crearPedido = (datos) =>
-    api.post("/tienda/pedidos", datos);
+export const crearPedido = (datos, idempotencyKey) =>
+    api.post("/tienda/pedidos", datos, {
+        headers: { "Idempotency-Key": idempotencyKey }
+    });
 
 // Obtener pedidos del cliente autenticado
 export const obtenerMisPedidos = () =>

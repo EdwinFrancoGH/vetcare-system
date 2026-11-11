@@ -1,5 +1,5 @@
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { VetCareBackground } from '@/components/vetcare-background';
 import { auth } from '@/config/firebase';
+import { AccesoClienteCitas } from '@/features/citas/components/acceso-cliente-citas';
+import { PagoCitaCard } from '@/features/citas/components/pago-cita-card';
+import { clasificarCitaMobile } from '@/features/citas/utils/citas-cliente';
 import { obtenerMascota } from '@/features/mascotas/services/mascotas.service';
 import {
   obtenerCita,
@@ -49,6 +52,10 @@ type Cita = {
   telefono?: string;
   motivo: string;
   estado: string;
+  servicioId?: string;
+  servicioNombre?: string;
+  precioCentavos?: number;
+  moneda?: string;
 };
 
 type Mascota = {
@@ -57,6 +64,10 @@ type Mascota = {
 };
 
 export default function DetalleCitaScreen() {
+  return <AccesoClienteCitas><DetalleCitaClienteScreen /></AccesoClienteCitas>;
+}
+
+function DetalleCitaClienteScreen() {
   const router = useRouter();
 
   const params = useLocalSearchParams<{
@@ -71,6 +82,8 @@ export default function DetalleCitaScreen() {
   const [mascota, setMascota] = useState<Mascota | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [cancelando, setCancelando] = useState(false);
+  const cancelacionEnCurso = useRef(false);
 
   // Regresar a la lista de citas de forma directa.
   const volverACitas = () => {
@@ -244,6 +257,7 @@ export default function DetalleCitaScreen() {
   };
 
   const ejecutarCancelacion = async () => {
+    if (cancelacionEnCurso.current) return;
     try {
       if (!cita) return;
 
@@ -254,6 +268,8 @@ export default function DetalleCitaScreen() {
         return;
       }
 
+      cancelacionEnCurso.current = true;
+      setCancelando(true);
       const token = await usuario.getIdToken();
 
       const response = await solicitarCancelacionCita(
@@ -284,6 +300,9 @@ export default function DetalleCitaScreen() {
       );
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'No se pudo cancelar la cita.');
+    } finally {
+      cancelacionEnCurso.current = false;
+      setCancelando(false);
     }
   };
 
@@ -344,7 +363,7 @@ export default function DetalleCitaScreen() {
     );
   }
 
-  const estado = obtenerEstado(cita.estado);
+  const estado = obtenerEstado(clasificarCitaMobile(cita, fechaHoySV()).estadoVisible);
   const puedeCancelar =
     cita.estado?.toLowerCase() !== 'cancelada' &&
     cita.estado?.toLowerCase() !== 'completada';
@@ -433,6 +452,8 @@ export default function DetalleCitaScreen() {
             </Text>
           </View>
 
+          <PagoCitaCard cita={cita} />
+
           {(cita.propietario || cita.telefono) && (
             <>
               <Text style={styles.tituloSeccion}>
@@ -461,14 +482,11 @@ export default function DetalleCitaScreen() {
             <Pressable
               style={styles.botonCancelar}
               onPress={cancelarCita}
+              disabled={cancelando}
             >
-              <Ionicons
-                name="close-circle-outline"
-                size={22}
-                color={colors.red}
-              />
+              {cancelando ? <ActivityIndicator size="small" color={colors.red} /> : <Ionicons name="close-circle-outline" size={22} color={colors.red} />}
               <Text style={styles.textoCancelar}>
-                Cancelar cita
+                {cancelando ? 'Cancelando...' : 'Cancelar cita'}
               </Text>
             </Pressable>
           )}
@@ -478,6 +496,10 @@ export default function DetalleCitaScreen() {
     </SafeAreaView>
     </VetCareBackground>
   );
+}
+
+function fechaHoySV() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/El_Salvador' }).format(new Date());
 }
 
 function DetalleHeader({ onBack }: { onBack: () => void }) {

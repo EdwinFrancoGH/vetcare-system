@@ -13,14 +13,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Colors } from '@/constants/theme';
 import { VetCareBackground } from '@/components/vetcare-background';
 import { API_URL } from '@/config/api';
 import { auth } from '@/config/firebase';
-import { crearMascota } from '@/features/mascotas/services/mascotas.service';
+import { actualizarMascota, crearMascota, obtenerMascota } from '@/features/mascotas/services/mascotas.service';
 
 const colors = Colors.light;
 
@@ -37,6 +37,8 @@ const especies = [
 
 export default function AgregarMascotaScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const editando = typeof id === 'string' && id.length > 0;
 
   const [nombre, setNombre] = useState('');
   const [especie, setEspecie] = useState('');
@@ -58,15 +60,54 @@ export default function AgregarMascotaScreen() {
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
 
-  const [estado] = useState('Activo');
+  const [estado, setEstado] = useState('Activo');
   const [foto, setFoto] = useState('');
   const [seleccionandoFoto, setSeleccionandoFoto] = useState(false);
+  const [cargandoMascota, setCargandoMascota] = useState(editando);
+
+  useEffect(() => {
+    if (!editando || !id) return;
+    let activa = true;
+    const cargarMascota = async () => {
+      try {
+        setCargandoMascota(true);
+        const usuario = auth.currentUser;
+        if (!usuario) throw new Error('Inicia sesión nuevamente para editar la mascota.');
+        const token = await usuario.getIdToken();
+        const response = await obtenerMascota(id, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.message || 'No se pudo cargar la mascota.');
+        const mascota = data?.data;
+        if (!activa || !mascota) return;
+        setNombre(mascota.nombre || '');
+        setEspecie(mascota.especie || '');
+        setEspecieOtroTexto(especies.some((item) => item.nombre === mascota.especie) ? '' : mascota.especie || '');
+        setRaza(mascota.raza || '');
+        setFechaNacimiento(mascota.fechaNacimiento ? String(mascota.fechaNacimiento).slice(0, 10) : '');
+        setSexo(mascota.sexo || '');
+        setPeso(String(mascota.peso ?? ''));
+        setColor(mascota.color || '');
+        setPropietario(mascota.propietario || '');
+        setTelefono(mascota.telefono || '');
+        setDireccion(mascota.direccion || '');
+        setEstado(mascota.estado || 'Activo');
+        setFoto(mascota.fotoURL || mascota.foto || mascota.imagen || '');
+      } catch (error: any) {
+        Alert.alert('No se pudo cargar', error?.message || 'Intenta nuevamente.');
+      } finally {
+        if (activa) setCargandoMascota(false);
+      }
+    };
+    void cargarMascota();
+    return () => { activa = false; };
+  }, [editando, id]);
 
   const hoy = fechaHoyISO();
   const diasCalendario = useMemo(() => obtenerDiasCalendario(mesCalendario), [mesCalendario]);
   const especieOtroSeleccionada = especie === 'Otro' || !especies.some((item) => item.nombre === especie);
 
   useEffect(() => {
+    if (editando) return;
     let activa = true;
     const usuario = auth.currentUser;
     if (!usuario) return;
@@ -93,7 +134,7 @@ export default function AgregarMascotaScreen() {
 
     void cargarNombrePerfil();
     return () => { activa = false; };
-  }, []);
+  }, [editando]);
 
   const handleVolver = () => {
     console.log('REGRESANDO A MASCOTAS');
@@ -167,6 +208,7 @@ export default function AgregarMascotaScreen() {
   };
 
   const handleGuardar = async () => {
+    if (cargandoMascota) return;
     if (!nombre.trim()) {
       Alert.alert(
         'Campo requerido',
@@ -308,14 +350,23 @@ export default function AgregarMascotaScreen() {
 
       console.log('Datos enviados:', mascota);
 
-      const response = await crearMascota({
-        method: 'POST',
+      const response = editando && id
+        ? await actualizarMascota(id, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(mascota),
-      });
+      })
+        : await crearMascota({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(mascota),
+        });
 
       console.log(
         'Backend respondió con status:',
@@ -343,17 +394,17 @@ export default function AgregarMascotaScreen() {
         throw new Error(
           data.message ||
           data.error ||
-          'No se pudo registrar la mascota.'
+          (editando ? 'No se pudo actualizar la mascota.' : 'No se pudo registrar la mascota.')
         );
       }
 
       console.log('================================');
-      console.log('MASCOTA CREADA CORRECTAMENTE');
+      console.log(editando ? 'MASCOTA ACTUALIZADA CORRECTAMENTE' : 'MASCOTA CREADA CORRECTAMENTE');
       console.log('================================');
 
       Alert.alert(
-        'Mascota registrada',
-        'La mascota fue guardada correctamente.',
+        editando ? 'Cambios guardados' : 'Mascota registrada',
+        editando ? 'La información de la mascota fue actualizada.' : 'La mascota fue guardada correctamente.',
         [
           {
             text: 'OK',
@@ -398,7 +449,7 @@ export default function AgregarMascotaScreen() {
           </Pressable>
 
           <Text style={styles.headerTitle}>
-            Agregar mascota
+            {editando ? 'Editar mascota' : 'Agregar mascota'}
           </Text>
 
           <View style={styles.headerSpace} />
@@ -684,6 +735,7 @@ export default function AgregarMascotaScreen() {
           <Pressable
             style={styles.saveButton}
             onPress={handleGuardar}
+            disabled={cargandoMascota}
           >
             <Ionicons
               name="checkmark-circle-outline"
@@ -692,7 +744,7 @@ export default function AgregarMascotaScreen() {
             />
 
             <Text style={styles.saveButtonText}>
-              Guardar mascota
+              {cargandoMascota ? 'Cargando mascota…' : editando ? 'Guardar cambios' : 'Guardar mascota'}
             </Text>
           </Pressable>
 

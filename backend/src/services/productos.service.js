@@ -30,6 +30,7 @@ export const crear = async (datos) => {
         nombre: datos.nombre,
         categoria: datos.categoria,
         descripcion: datos.descripcion || "",
+        imagenUrl: datos.imagenUrl || "",
         precio: Number(datos.precio),
         stock: Number(datos.stock),
         stockMinimo: Number(datos.stockMinimo),
@@ -89,19 +90,20 @@ export const actualizar = async (id, datos) => {
 };
 
 // Eliminar un producto
-export const eliminar = async (id) => {
-    const docRef = db.collection("productos").doc(id);
+export const eliminarConDb = async (id, database) => database.runTransaction(async (transaction) => {
+    const docRef = database.collection("productos").doc(id);
+    const doc = await transaction.get(docRef);
 
-    const doc = await docRef.get();
+    if (!doc.exists) return false;
 
-    if (!doc.exists) {
-        return false;
-    }
-
-    await docRef.delete();
-
+    transaction.update(docRef, {
+        activo: false,
+        fechaActualizacion: new Date().toISOString()
+    });
     return true;
-};
+});
+
+export const eliminar = (id) => eliminarConDb(id, db);
 
 // Obtener productos con stock bajo
 export const obtenerStockBajo = async () => {

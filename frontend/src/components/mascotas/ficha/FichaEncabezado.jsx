@@ -12,7 +12,7 @@ const COLOR_ESTADO_CLINICO = {
     "Sin historial": "bg-gray-100 text-gray-600",
 };
 
-export default function FichaEncabezado({ mascota, esCliente, estadoClinico, onEditar }) {
+export default function FichaEncabezado({ mascota, esCliente, esRecepcionista = false, estadoClinico, onEditar }) {
     const espConfig = obtenerEspecie(mascota.especie);
     const IconoEspecie = espConfig.icon;
 
@@ -93,14 +93,16 @@ export default function FichaEncabezado({ mascota, esCliente, estadoClinico, onE
                         </>
                     ) : (
                         <>
-                            <span
-                                title="Estado clínico calculado a partir de pendientes vencidos y próximos"
-                                className={`px-3.5 py-1.5 rounded-full text-sm font-bold shadow-sm ${
-                                    COLOR_ESTADO_CLINICO[estadoClinico] || "bg-gray-100 text-gray-600"
-                                }`}
-                            >
-                                Estado clínico: {estadoClinico}
-                            </span>
+                            {!esRecepcionista && (
+                                <span
+                                    title="Estado clínico calculado a partir de pendientes vencidos y próximos"
+                                    className={`px-3.5 py-1.5 rounded-full text-sm font-bold shadow-sm ${
+                                        COLOR_ESTADO_CLINICO[estadoClinico] || "bg-gray-100 text-gray-600"
+                                    }`}
+                                >
+                                    Estado clínico: {estadoClinico}
+                                </span>
+                            )}
 
                             <button
                                 type="button"

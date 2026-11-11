@@ -7,6 +7,7 @@ import {
     cancelarCita,
 } from "../../services/citas.service";
 import { obtenerMascotas } from "../../services/mascotas.service";
+import ReprogramarCitaModal from "./ReprogramarCitaModal";
 import {
     formatearFechaLarga,
     ETIQUETA_ESTADO_CITA,
@@ -24,6 +25,7 @@ export default function ProximasConsultas({ veterinario, onCambio }) {
     const [mascotas, setMascotas] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState(null);
+    const [citaAReprogramar, setCitaAReprogramar] = useState(null);
 
     useEffect(() => {
         cargarDatos();
@@ -185,6 +187,16 @@ export default function ProximasConsultas({ veterinario, onCambio }) {
                                             </button>
                                         )}
 
+                                        {(["reservada", "confirmada"].includes(cita.estado)) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCitaAReprogramar(cita)}
+                                                className="bg-white hover:bg-blue-50 text-blue-700 border border-blue-300 px-3 py-1 rounded mr-2"
+                                            >
+                                                Reprogramar
+                                            </button>
+                                        )}
+
                                         <button
                                             onClick={() => cancelar(cita.id)}
                                             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
@@ -200,6 +212,18 @@ export default function ProximasConsultas({ veterinario, onCambio }) {
                     </table>
                     </div>
                 </div>
+            )}
+
+            {citaAReprogramar && (
+                <ReprogramarCitaModal
+                    key={citaAReprogramar.id}
+                    cita={citaAReprogramar}
+                    onClose={() => setCitaAReprogramar(null)}
+                    onSuccess={async () => {
+                        await cargarDatos();
+                        if (onCambio) onCambio();
+                    }}
+                />
             )}
 
         </div>

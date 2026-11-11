@@ -14,13 +14,15 @@ import { obtenerPorId as obtenerMascotaPorId, obtenerPorPropietario } from "../s
 // Obtener todos los historiales
 export const obtenerHistoriales = async (req, res) => {
     try {
-        let historiales = await obtenerTodos();
+        let historiales;
 
         // Corrección de seguridad: si es Cliente, solo puede consultar historiales de sus mascotas
         if (req.userRole === "Cliente") {
             const misMascotas = await obtenerPorPropietario(req.user.uid);
-            const idsMascotas = new Set(misMascotas.map(m => m.id));
-            historiales = historiales.filter(h => idsMascotas.has(h.mascotaId));
+            const grupos = await Promise.all(misMascotas.map((mascota) => obtenerPorMascota(mascota.id)));
+            historiales = grupos.flat();
+        } else {
+            historiales = await obtenerTodos();
         }
 
         res.json({
@@ -29,7 +31,6 @@ export const obtenerHistoriales = async (req, res) => {
         });
 
     } catch (error) {
-
         res.status(500).json({
             ok: false,
             mensaje: error.message
@@ -80,7 +81,6 @@ export const obtenerHistorialPorId = async (req, res) => {
         });
 
     } catch (error) {
-
         res.status(500).json({
             ok: false,
             mensaje: error.message
@@ -169,6 +169,13 @@ export const crearHistorial = async (req, res) => {
 
     } catch (error) {
 
+        if (error.message === "MASCOTA_NO_ENCONTRADA") {
+            return res.status(404).json({ ok: false, mensaje: "La mascota asociada no existe." });
+        }
+        if (error.message === "MASCOTA_ARCHIVADA") {
+            return res.status(409).json({ ok: false, mensaje: "No se pueden crear registros para una mascota archivada." });
+        }
+
         res.status(500).json({
             ok: false,
             mensaje: error.message
@@ -220,6 +227,13 @@ export const actualizarHistorial = async (req, res) => {
         });
 
     } catch (error) {
+
+        if (error.message === "MASCOTA_NO_ENCONTRADA") {
+            return res.status(404).json({ ok: false, mensaje: "La mascota asociada no existe." });
+        }
+        if (error.message === "MASCOTA_ARCHIVADA") {
+            return res.status(409).json({ ok: false, mensaje: "No se puede reasignar el registro a una mascota archivada." });
+        }
 
         res.status(500).json({
             ok: false,

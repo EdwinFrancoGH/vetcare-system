@@ -24,3 +24,9 @@ export const obtenerCita = (citaId: string, init?: RequestInit) =>
 
 export const solicitarCancelacionCita = (citaId: string, init: RequestInit) =>
   apiFetch(`${API_URL}/api/citas/${encodeURIComponent(citaId)}/cancelar`, init);
+
+export const consultarPagoCita = (citaId: string, init?: RequestInit) =>
+  apiFetch(`${API_URL}/api/citas/${encodeURIComponent(citaId)}/pago`, init);
+
+export const reportarPagoCita = (citaId: string, init: RequestInit) =>
+  apiFetch(`${API_URL}/api/citas/${encodeURIComponent(citaId)}/pago/reportar`, init);
