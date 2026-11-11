@@ -169,14 +169,6 @@ export default function LoginScreen() {
       setError('');
 
     } catch (error: any) {
-      console.error('================================');
-      console.error('ERROR DURANTE LOGIN');
-      console.error('================================');
-
-      console.error('Error completo:', error);
-      console.error('Código:', error?.code);
-      console.error('Mensaje:', error?.message);
-
       // ==========================================
       // ERRORES DE FIREBASE AUTHENTICATION
       // ==========================================
@@ -221,7 +213,7 @@ export default function LoginScreen() {
 
           default:
             setError(
-              `Error de Firebase: ${error.code}`
+              'No se pudo iniciar sesión. Intenta nuevamente.'
             );
             break;
         }
