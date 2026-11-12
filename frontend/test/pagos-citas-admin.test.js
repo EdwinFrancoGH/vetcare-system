@@ -110,3 +110,17 @@ test("errores de sesión y autorización se traducen en mensajes claros", () => 
     assert.match(mensajeErrorPago({ response: { status: 401 } }), /sesión expiró/i);
     assert.match(mensajeErrorPago({ response: { status: 403 } }), /permiso/i);
 });
+
+test("filtra y resume el historial de pagos", async () => {
+    const { filtrarHistorialPagos, resumirHistorialPagos } = await import("../src/utils/pagosCitasAdmin.js");
+    const pagos = [
+        { id: "a", citaId: "a", estado: "aprobado", montoCentavos: 2500, moneda: "USD", cliente: { nombre: "Ana López" }, mascota: { nombre: "Firulais" }, referencia: "REF-1" },
+        { id: "b", citaId: "b", estado: "rechazado", montoCentavos: 1000, moneda: "USD", cliente: { nombre: "Luis" }, mascota: { nombre: "Michi" } },
+        { id: "c", citaId: "c", estado: "aprobado", montoCentavos: 1500, moneda: "USD", cliente: { nombre: "José" }, mascota: { nombre: "Rocky" } },
+    ];
+    assert.deepEqual(filtrarHistorialPagos(pagos, { estado: "aprobado" }).map((p) => p.id), ["a", "c"]);
+    assert.deepEqual(filtrarHistorialPagos(pagos, { texto: "lopez" }).map((p) => p.id), ["a"]);
+    assert.deepEqual(filtrarHistorialPagos(pagos, { texto: "michi" }).map((p) => p.id), ["b"]);
+    assert.deepEqual(filtrarHistorialPagos(pagos, { estado: "rechazado", texto: "rocky" }), []);
+    assert.deepEqual(resumirHistorialPagos(pagos), { aprobados: 2, rechazados: 1, totalAprobadoCentavos: 4000 });
+});

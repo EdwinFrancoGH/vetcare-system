@@ -338,6 +338,7 @@ test("Administrador y Recepcionista pueden usar las rutas financieras; Cliente y
     const base = `http://127.0.0.1:${server.address().port}/pagos`;
     const solicitudes = [
         ["GET", `${base}/pendientes`],
+        ["GET", `${base}/historial`],
         ["PATCH", `${base}/cita-1/aprobar`],
         ["PATCH", `${base}/cita-1/rechazar`],
     ];
@@ -500,4 +501,24 @@ test("el controlador de consulta deniega finanzas al Veterinario y oculta citas 
     assert.equal((await llamar("vet-1", "Veterinario")).status, 403);
     assert.equal((await llamar("client-2", "Cliente")).status, 404);
     assert.equal((await llamar("recep-1", "Recepcionista")).status, 200);
+});
+
+test("historial lista solo pagos revisados, del más reciente al más antiguo, con mascota y verificador", async () => {
+    const db = new FakeFirestore();
+    db.seed("citas", "cita-1", cita());
+    db.seed("mascotas", "pet-1", { nombre: "Firulais", propietarioUid: "client-1" });
+    db.seed("usuarios", "client-1", { name: "Ana Cliente", email: "ana@example.test", passwordHash: "secret" });
+    db.seed("usuarios", "staff-1", { name: "Edwin", role: "Recepcionista" });
+    db.seed("pagos", "cita-1", pagoSeed("aprobado", { verificadoAt: "2026-01-03T10:00:00.000Z", verificadorUid: "staff-1", verificadorRol: "Recepcionista" }));
+    db.seed("pagos", "cita-2", pagoSeed("rechazado", { citaId: "cita-2", verificadoAt: "2026-01-05T10:00:00.000Z", verificadorUid: "staff-1", verificadorRol: "Recepcionista", motivoRechazo: "Referencia inválida" }));
+    db.seed("pagos", "cita-3", pagoSeed("reportado", { citaId: "cita-3" }));
+
+    const resultado = await crearServicioPagosCitas(db).listarHistorial();
+    assert.deepEqual(resultado.map((pago) => pago.id), ["cita-2", "cita-1"]);
+    assert.equal(resultado[1].mascota.nombre, "Firulais");
+    assert.equal(resultado[1].cliente.nombre, "Ana Cliente");
+    assert.deepEqual(resultado[1].verificador, { uid: "staff-1", nombre: "Edwin", rol: "Recepcionista" });
+    assert.equal(resultado[0].motivoRechazo, "Referencia inválida");
+    assert.equal(resultado[0].mascota.nombre, "Mascota no disponible");
+    assert.equal(JSON.stringify(resultado).includes("passwordHash"), false);
 });
