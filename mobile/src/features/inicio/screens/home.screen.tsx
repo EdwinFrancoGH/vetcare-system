@@ -19,6 +19,7 @@ import { listarMascotas, obtenerVacunasMascota } from '@/features/mascotas/servi
 import { listarCitasDeMascota } from '@/features/citas/services/citas.service';
 import { obtenerMisPedidos } from '@/features/compras/services/compras.service';
 import { esRolRevisorPagos } from '@/features/pagos-citas/utils/pagos-admin';
+import { obtenerSaludo } from '@/features/inicio/utils/saludo';
 
 const colors = Colors.light;
 
@@ -34,8 +35,11 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rolUsuario, setRolUsuario] = useState('');
+  const [saludo, setSaludo] = useState(() => obtenerSaludo());
 
   const cargarInicio = useCallback(async () => {
+    // El saludo se recalcula cada vez que se entra al Home.
+    setSaludo(obtenerSaludo());
     const usuario = auth.currentUser;
     if (!usuario) {
       setRolUsuario('');
@@ -164,7 +168,10 @@ export default function HomeScreen() {
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <View style={styles.headerText}>
-              <Text style={styles.greeting}>¡Hola, {nombreUsuario}!</Text>
+              <View style={styles.greetingRow}>
+                <Ionicons name={saludo.icono} size={22} color={saludo.color} />
+                <Text style={styles.greeting}>{saludo.texto}, {nombreUsuario}</Text>
+              </View>
               <Text style={styles.welcomeText}>Bienvenido/a de vuelta a VetCare</Text>
             </View>
             <Pressable style={styles.profileAvatar} onPress={() => router.push('/explore')} accessibilityLabel="Abrir perfil">
@@ -421,12 +428,19 @@ const styles = StyleSheet.create({
   },
   profileImage: { width: '100%', height: '100%', borderRadius: 21 },
 
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 3,
+  },
+
   greeting: {
+    flexShrink: 1,
     color: '#FFFFFF',
     fontSize: 23,
     lineHeight: 29,
     fontWeight: '700',
-    marginBottom: 3,
   },
 
   welcomeText: {

@@ -1,5 +1,6 @@
 import {
     aprobarPagoCita,
+    listarHistorialPagos,
     listarPagosPendientes,
     rechazarPagoCita,
     ErrorPagoCita,
@@ -28,6 +29,7 @@ const responderError = (res, error, mensaje) => {
 
 export const crearControladorPagos = ({
     listar = listarPagosPendientes,
+    listarHistorial = listarHistorialPagos,
     aprobar = aprobarPagoCita,
     rechazar = rechazarPagoCita,
 } = {}) => ({
@@ -37,6 +39,15 @@ export const crearControladorPagos = ({
             return res.status(200).json({ ok: true, data });
         } catch (error) {
             return responderError(res, error, "No se pudieron consultar los pagos pendientes.");
+        }
+    },
+
+    historial: async (_req, res) => {
+        try {
+            const data = await listarHistorial();
+            return res.status(200).json({ ok: true, data });
+        } catch (error) {
+            return responderError(res, error, "No se pudo consultar el historial de pagos.");
         }
     },
 
@@ -78,5 +89,6 @@ export const crearControladorPagos = ({
 
 const controladores = crearControladorPagos();
 export const listarPagosPendientesController = controladores.pendientes;
+export const listarHistorialPagosController = controladores.historial;
 export const aprobarPagoCitaController = controladores.aprobar;
 export const rechazarPagoCitaController = controladores.rechazar;

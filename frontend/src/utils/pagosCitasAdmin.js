@@ -16,6 +16,7 @@ export const esRolRevisorPagos = (rol) => ROLES_REVISORES_PAGOS.includes(rol);
 
 export const crearServicioPagosCitasWeb = (clienteApi) => ({
     obtenerPendientes: () => clienteApi.get("/pagos/pendientes"),
+    obtenerHistorial: () => clienteApi.get("/pagos/historial"),
     consultarDetalle: (citaId) => clienteApi.get(`/citas/${encodeURIComponent(citaId)}/pago`),
     aprobar: (citaId) => clienteApi.patch(`/pagos/${encodeURIComponent(citaId)}/aprobar`, {}),
     rechazar: (citaId, motivoRechazo) => clienteApi.patch(
@@ -44,6 +45,50 @@ export function formatearImportePago(montoCentavos, moneda) {
 }
 
 export const etiquetaEstadoPago = (estado) => ETIQUETAS_ESTADO[estado] || estado || "Estado no disponible";
+
+export const ESTADOS_HISTORIAL_PAGOS = ["aprobado", "rechazado", "anulado"];
+
+const CLASES_ESTADO = {
+    aprobado: "bg-green-100 text-green-800",
+    rechazado: "bg-red-100 text-red-800",
+    anulado: "bg-zinc-200 text-zinc-700",
+    reportado: "bg-amber-100 text-amber-800",
+    en_revision: "bg-amber-100 text-amber-800",
+};
+
+export const claseEstadoPago = (estado) => CLASES_ESTADO[estado] || "bg-zinc-100 text-zinc-700";
+
+const normalizarTexto = (valor) => String(valor || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// Filtra el historial por estado ("todos" = sin filtro) y por texto libre
+// (cliente, correo, mascota, servicio, referencia o ID de cita).
+export function filtrarHistorialPagos(pagos, { estado = "todos", texto = "" } = {}) {
+    const lista = Array.isArray(pagos) ? pagos : [];
+    const busqueda = normalizarTexto(texto).trim();
+    return lista.filter((pago) => {
+        if (estado !== "todos" && pago.estado !== estado) return false;
+        if (!busqueda) return true;
+        return [
+            pago.cliente?.nombre, pago.cliente?.email, pago.mascota?.nombre,
+            pago.servicio?.nombre, pago.referencia, pago.citaId, pago.metodoPago,
+        ].some((campo) => normalizarTexto(campo).includes(busqueda));
+    });
+}
+
+// Totales del historial: cuántos pagos hay por estado y monto aprobado.
+export function resumirHistorialPagos(pagos) {
+    const lista = Array.isArray(pagos) ? pagos : [];
+    return lista.reduce((resumen, pago) => {
+        if (pago.estado === "aprobado") {
+            resumen.aprobados += 1;
+            if (Number.isSafeInteger(pago.montoCentavos) && pago.moneda === "USD") {
+                resumen.totalAprobadoCentavos += pago.montoCentavos;
+            }
+        } else if (pago.estado === "rechazado") resumen.rechazados += 1;
+        return resumen;
+    }, { aprobados: 0, rechazados: 0, totalAprobadoCentavos: 0 });
+}
 
 export function etiquetaEventoPago(evento) {
     if (evento?.tipo === "reporte") return `Reporte del cliente${evento.intento ? ` · intento ${evento.intento}` : ""}`;

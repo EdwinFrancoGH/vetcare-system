@@ -1,25 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FaCheck, FaClock, FaExclamationCircle, FaMoneyBillWave, FaTimes } from "react-icons/fa";
+import { FaCheck, FaClock, FaExclamationCircle, FaHistory, FaMoneyBillWave, FaSearch, FaTimes } from "react-icons/fa";
 import RequireRole from "../../../components/auth/RequireRole";
 import {
     aprobarPagoCita,
     consultarDetallePagoCita,
+    obtenerHistorialPagos,
     obtenerPagosPendientes,
     rechazarPagoCita,
 } from "../../../services/pagos-citas.service";
 import {
+    claseEstadoPago,
     crearPayloadRechazoPago,
     etiquetaEventoPago,
     ejecutarDecisionPago,
     etiquetaEstadoPago,
     extraerListaPagos,
     extraerPagoDetalle,
+    filtrarHistorialPagos,
     formatearFechaPago,
     formatearImportePago,
     mensajeErrorPago,
     puedeDecidirPago,
+    resumirHistorialPagos,
     ROLES_REVISORES_PAGOS,
 } from "../../../utils/pagosCitasAdmin";
 
@@ -46,6 +50,22 @@ function PanelRevisionPagos() {
     const [errorMotivo, setErrorMotivo] = useState("");
     const [procesandoId, setProcesandoId] = useState(null);
     const bloqueos = useRef(new Set());
+    const [historial, setHistorial] = useState([]);
+    const [cargandoHistorial, setCargandoHistorial] = useState(true);
+    const [errorHistorial, setErrorHistorial] = useState("");
+
+    const cargarHistorial = useCallback(async () => {
+        setCargandoHistorial(true);
+        setErrorHistorial("");
+        try {
+            const respuesta = await obtenerHistorialPagos();
+            setHistorial(extraerListaPagos(respuesta));
+        } catch (err) {
+            setErrorHistorial(mensajeErrorPago(err));
+        } finally {
+            setCargandoHistorial(false);
+        }
+    }, []);
 
     const cargarLista = useCallback(async (recarga = false) => {
         if (recarga) setActualizando(true);
@@ -63,9 +83,9 @@ function PanelRevisionPagos() {
     }, []);
 
     useEffect(() => {
-        const timer = setTimeout(() => { void cargarLista(); }, 0);
+        const timer = setTimeout(() => { void cargarLista(); void cargarHistorial(); }, 0);
         return () => clearTimeout(timer);
-    }, [cargarLista]);
+    }, [cargarLista, cargarHistorial]);
 
     const cargarDetalle = async (pago) => {
         setDetalleBase(pago);
@@ -85,7 +105,7 @@ function PanelRevisionPagos() {
     };
 
     const actualizarTrasDecision = async (pago) => {
-        await cargarLista(true);
+        await Promise.all([cargarLista(true), cargarHistorial()]);
         if (detalleBase?.citaId === pago.citaId) await cargarDetalle(pago);
     };
 
@@ -168,7 +188,7 @@ function PanelRevisionPagos() {
                     </div>
                     <p className="mt-1 text-sm text-zinc-500">Pagos reportados para citas veterinarias que esperan revisión.</p>
                 </div>
-                <button type="button" onClick={() => cargarLista(true)} disabled={actualizando || cargando} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+                <button type="button" onClick={() => { void cargarLista(true); void cargarHistorial(); }} disabled={actualizando || cargando} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
                     {actualizando ? "Actualizando..." : "Actualizar listado"}
                 </button>
             </header>
@@ -220,6 +240,14 @@ function PanelRevisionPagos() {
                 </div>
             ) : null}
 
+            <HistorialPagos
+                pagos={historial}
+                cargando={cargandoHistorial}
+                error={errorHistorial}
+                onRetry={cargarHistorial}
+                onVerDetalle={cargarDetalle}
+            />
+
             {detalleBase ? <DetallePagoModal
                 base={detalleBase}
                 detalle={detalle}
@@ -248,6 +276,98 @@ function PanelRevisionPagos() {
                 </form>
             </div> : null}
         </main>
+    );
+}
+
+const FILTROS_HISTORIAL = [
+    { valor: "todos", etiqueta: "Todos" },
+    { valor: "aprobado", etiqueta: "Aprobados" },
+    { valor: "rechazado", etiqueta: "Rechazados" },
+    { valor: "anulado", etiqueta: "Anulados" },
+];
+
+function HistorialPagos({ pagos, cargando, error, onRetry, onVerDetalle }) {
+    const [estado, setEstado] = useState("todos");
+    const [texto, setTexto] = useState("");
+    const visibles = filtrarHistorialPagos(pagos, { estado, texto });
+    const resumen = resumirHistorialPagos(pagos);
+
+    return (
+        <section className="space-y-4" aria-labelledby="historial-pagos-titulo">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                    <div className="flex items-center gap-2">
+                        <FaHistory className="text-blue-700" size={20} />
+                        <h2 id="historial-pagos-titulo" className="text-xl font-bold text-zinc-900">Historial de pagos</h2>
+                    </div>
+                    <p className="mt-1 text-sm text-zinc-500">Pagos ya revisados, del más reciente al más antiguo.</p>
+                </div>
+                {!cargando && !error && pagos.length ? (
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                        <span className="rounded-full bg-green-100 px-3 py-1 text-green-800">{resumen.aprobados} aprobados · {formatearImportePago(resumen.totalAprobadoCentavos, "USD")}</span>
+                        <span className="rounded-full bg-red-100 px-3 py-1 text-red-800">{resumen.rechazados} rechazados</span>
+                    </div>
+                ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+                    {FILTROS_HISTORIAL.map((filtro) => (
+                        <button key={filtro.valor} type="button" onClick={() => setEstado(filtro.valor)} aria-pressed={estado === filtro.valor}
+                            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${estado === filtro.valor ? "bg-blue-700 text-white" : "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"}`}>
+                            {filtro.etiqueta}
+                        </button>
+                    ))}
+                </div>
+                <label className="relative ml-auto w-full sm:w-72">
+                    <span className="sr-only">Buscar en el historial</span>
+                    <FaSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={13} />
+                    <input type="search" value={texto} onChange={(event) => setTexto(event.target.value)} placeholder="Buscar cliente, mascota, referencia..."
+                        className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none" />
+                </label>
+            </div>
+
+            {cargando ? (
+                <div className="flex items-center justify-center gap-3 rounded-xl bg-white py-12 text-zinc-500">
+                    <div className="h-6 w-6 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />Cargando historial...
+                </div>
+            ) : error ? (
+                <div role="alert" className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><FaExclamationCircle />{error}<button type="button" onClick={onRetry} className="ml-auto font-semibold underline">Reintentar</button></div>
+            ) : visibles.length === 0 ? (
+                <div className="rounded-xl border border-zinc-200 bg-white p-10 text-center text-sm text-zinc-500">
+                    {pagos.length ? "Ningún pago coincide con los filtros." : "Todavía no hay pagos revisados."}
+                </div>
+            ) : (
+                <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-zinc-100 text-left text-zinc-700">
+                                <tr>
+                                    <th className="px-4 py-3">Fecha de revisión</th><th className="px-4 py-3">Cliente / mascota</th><th className="px-4 py-3">Servicio</th><th className="px-4 py-3">Importe</th><th className="px-4 py-3">Método / referencia</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Revisado por</th><th className="px-4 py-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {visibles.map((pago) => (
+                                    <tr key={pago.id} className="border-t border-zinc-100 align-top text-zinc-700">
+                                        <td className="whitespace-nowrap px-4 py-4">{formatearFechaPago(pago.verificadoAt || pago.reportadoAt)}<div className="mt-1 text-xs text-zinc-500">Cita: {pago.citaId}</div></td>
+                                        <td className="px-4 py-4"><div className="font-medium text-zinc-900">{pago.cliente?.nombre || "Cliente"}</div><div className="text-xs text-zinc-500">{pago.mascota?.nombre || "Mascota no disponible"}</div></td>
+                                        <td className="px-4 py-4">{pago.servicio?.nombre || "Servicio no disponible"}</td>
+                                        <td className="whitespace-nowrap px-4 py-4 font-semibold">{formatearImportePago(pago.montoCentavos, pago.moneda)}</td>
+                                        <td className="px-4 py-4"><div>{pago.metodoPago || "—"}</div><div className="max-w-40 break-words text-xs text-zinc-500">{pago.referencia || "Sin referencia"}</div></td>
+                                        <td className="px-4 py-4">
+                                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${claseEstadoPago(pago.estado)}`}>{etiquetaEstadoPago(pago.estado)}</span>
+                                            {pago.motivoRechazo ? <div className="mt-2 max-w-48 break-words text-xs text-red-700">{pago.motivoRechazo}</div> : null}
+                                        </td>
+                                        <td className="px-4 py-4">{pago.verificador ? <><div>{pago.verificador.nombre}</div><div className="text-xs text-zinc-500">{pago.verificador.rol || ""}</div></> : <span className="text-zinc-400">—</span>}</td>
+                                        <td className="px-4 py-4"><button type="button" className="whitespace-nowrap font-semibold text-blue-700 hover:underline" onClick={() => onVerDetalle(pago)}>Ver detalle</button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </section>
     );
 }
 

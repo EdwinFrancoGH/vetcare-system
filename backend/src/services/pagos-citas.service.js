@@ -6,6 +6,7 @@ const COLECCION_MASCOTAS = "mascotas";
 const ESTADOS_REPORTE_ACTIVO = new Set(["reportado", "en_revision", "aprobado"]);
 const ESTADOS_REVISABLES = new Set(["reportado", "en_revision"]);
 const ROLES_REVISORES = new Set(["Administrador", "Recepcionista"]);
+const ESTADOS_HISTORIAL = new Set(["aprobado", "rechazado", "anulado"]);
 
 export class ErrorPagoCita extends Error {
     constructor(codigo) {
@@ -17,6 +18,53 @@ export class ErrorPagoCita extends Error {
 
 const crearErrorRevision = (codigo) => new ErrorPagoCita(codigo);
 
+// Busca nombre y correo de varios usuarios (sin repetir lecturas).
+async function obtenerUsuarios(firestoreDb, uids) {
+    const unicos = [...new Set(uids.filter((uid) => typeof uid === "string" && uid))];
+    const entradas = await Promise.all(unicos.map(async (uid) => {
+        const usuario = await firestoreDb.collection("usuarios").doc(uid).get();
+        const datos = usuario.exists ? usuario.data() : {};
+        return [uid, {
+            uid,
+            nombre: typeof datos.name === "string" && datos.name.trim() ? datos.name.trim() : "Cliente",
+            ...(typeof datos.email === "string" && datos.email.trim() ? { email: datos.email.trim() } : {}),
+        }];
+    }));
+    return new Map(entradas);
+}
+
+// Devuelve { id, nombre } de la mascota de cada cita (cita -> mascotaId -> mascota).
+async function obtenerMascotasDeCitas(firestoreDb, citaIds) {
+    const unicos = [...new Set(citaIds.filter(Boolean))];
+    const entradas = await Promise.all(unicos.map(async (citaId) => {
+        const citaDoc = await firestoreDb.collection(COLECCION_CITAS).doc(citaId).get();
+        const mascotaId = citaDoc.exists ? citaDoc.data().mascotaId : null;
+        if (!mascotaId) return [citaId, null];
+        const mascotaDoc = await firestoreDb.collection(COLECCION_MASCOTAS).doc(mascotaId).get();
+        const nombre = mascotaDoc.exists ? mascotaDoc.data().nombre : null;
+        return [citaId, { id: mascotaId, nombre: typeof nombre === "string" && nombre.trim() ? nombre.trim() : "Mascota" }];
+    }));
+    return new Map(entradas.filter(([, mascota]) => mascota));
+}
+
+// Información mínima de un pago para los listados del personal.
+function resumirPago(pago, usuarios) {
+    return {
+        id: pago.id,
+        citaId: pago.citaId || pago.id,
+        cliente: pago.clienteUid
+            ? usuarios.get(pago.clienteUid)
+            : { uid: null, nombre: "Cliente no disponible" },
+        servicio: { id: pago.servicioId || null, nombre: pago.servicioNombre || "Servicio no disponible" },
+        montoCentavos: pago.montoCentavos,
+        moneda: pago.moneda,
+        metodoPago: pago.metodoPago,
+        referencia: pago.referencia || null,
+        reportadoAt: pago.reportadoAt,
+        estado: pago.estado,
+    };
+}
+
 export const crearServicioPagosCitas = (firestoreDb) => ({
     async listarPendientes() {
         const resultado = await firestoreDb.collection(COLECCION_PAGOS)
@@ -25,29 +73,35 @@ export const crearServicioPagosCitas = (firestoreDb) => ({
         const pagos = resultado.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
             .sort((a, b) => String(a.reportadoAt || "").localeCompare(String(b.reportadoAt || "")));
 
-        const usuarios = await Promise.all(pagos.map(async (pago) => {
-            if (!pago.clienteUid) return [pago.id, { uid: null, nombre: "Cliente no disponible" }];
-            const usuario = await firestoreDb.collection("usuarios").doc(pago.clienteUid).get();
-            const datos = usuario.exists ? usuario.data() : {};
-            return [pago.id, {
-                uid: pago.clienteUid,
-                nombre: typeof datos.name === "string" && datos.name.trim() ? datos.name.trim() : "Cliente",
-                ...(typeof datos.email === "string" && datos.email.trim() ? { email: datos.email.trim() } : {}),
-            }];
-        }));
-        const porId = new Map(usuarios);
+        const clientes = await obtenerUsuarios(firestoreDb, pagos.map((pago) => pago.clienteUid));
+        return pagos.map((pago) => resumirPago(pago, clientes));
+    },
+
+    // Historial: pagos que ya fueron revisados (aprobados, rechazados o anulados),
+    // del más reciente al más antiguo.
+    async listarHistorial() {
+        const resultado = await firestoreDb.collection(COLECCION_PAGOS)
+            .where("estado", "in", [...ESTADOS_HISTORIAL])
+            .get();
+        const fechaOrden = (pago) => String(pago.verificadoAt || pago.updatedAt || pago.reportadoAt || "");
+        const pagos = resultado.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => fechaOrden(b).localeCompare(fechaOrden(a)));
+
+        const usuarios = await obtenerUsuarios(firestoreDb, [
+            ...pagos.map((pago) => pago.clienteUid),
+            ...pagos.map((pago) => pago.verificadorUid),
+        ]);
+        const mascotas = await obtenerMascotasDeCitas(firestoreDb, pagos.map((pago) => pago.citaId || pago.id));
 
         return pagos.map((pago) => ({
-            id: pago.id,
-            citaId: pago.citaId || pago.id,
-            cliente: porId.get(pago.id),
-            servicio: { id: pago.servicioId || null, nombre: pago.servicioNombre || "Servicio no disponible" },
-            montoCentavos: pago.montoCentavos,
-            moneda: pago.moneda,
-            metodoPago: pago.metodoPago,
-            referencia: pago.referencia || null,
-            reportadoAt: pago.reportadoAt,
-            estado: pago.estado,
+            ...resumirPago(pago, usuarios),
+            mascota: mascotas.get(pago.citaId || pago.id) || { id: null, nombre: "Mascota no disponible" },
+            verificadoAt: pago.verificadoAt || null,
+            verificador: pago.verificadorUid
+                ? { uid: pago.verificadorUid, nombre: usuarios.get(pago.verificadorUid)?.nombre || "Usuario", rol: pago.verificadorRol || null }
+                : null,
+            motivoRechazo: pago.motivoRechazo || null,
+            numeroIntentos: Number.isSafeInteger(pago.numeroIntentos) ? pago.numeroIntentos : 1,
         }));
     },
 
@@ -243,5 +297,6 @@ const servicio = crearServicioPagosCitas(db);
 export const reportarPagoCita = (datos) => servicio.reportar(datos);
 export const consultarPagoCita = (citaId, actorUid, actorRol) => servicio.consultar(citaId, actorUid, actorRol);
 export const listarPagosPendientes = () => servicio.listarPendientes();
+export const listarHistorialPagos = () => servicio.listarHistorial();
 export const aprobarPagoCita = (datos) => servicio.aprobar(datos);
 export const rechazarPagoCita = (datos) => servicio.rechazar(datos);
